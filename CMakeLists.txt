@@ -5,13 +5,14 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(fmt REQUIRED)
 find_package(DCMTK REQUIRED)
-add_executable(${PROJECT_NAME} main.cpp
-        PatientRecord.cpp
-        PatientRecord.hpp
-        StudyQueryRetriever.cpp
-        StudyQueryRetriever.hpp
-        Callbacks.cpp
-        Callbacks.hpp
-)
+
+set(SOURCES main.cpp
+src/PatientRecord.cpp
+src/StudyQueryRetriever.cpp
+src/Callbacks.cpp)
+
+add_executable(${PROJECT_NAME} ${SOURCES})
+
+target_include_directories(${PROJECT_NAME} PRIVATE src/include)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt DCMTK::DCMTK)

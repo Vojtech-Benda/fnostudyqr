@@ -71,7 +71,7 @@ public:
 	OFCondition dropNetwork();
 	OFCondition setupAssociation();
 	OFCondition removeAssociation(const OFCondition& queryCondition);
-	OFCondition addPresentationContext(const E_TransferSyntax preferredTransferSyntax,
+	OFCondition addPresentationContext(const E_TransferSyntax outNetworkTransferSyntax,
 									   const T_ASC_PresentationContextID presID,
 									   const char* abstractSyntax);
 	OFCondition performFindRequest(PatientRecord& patient_record,

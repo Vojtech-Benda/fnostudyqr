@@ -2,7 +2,7 @@
 // Created by Vojtěch on 17.03.2025.
 //
 
-#include "StudyQueryRetriever.hpp"
+#include "include/StudyQueryRetriever.hpp"
 
 QueryRetriever::QueryRetriever()
 	: m_net(nullptr) {}
