@@ -17,7 +17,7 @@ Studies are then donwloaded (C-MOVE request) and stored.
 ```
 fnostudyqr pacs-ip pacs-port [options]
 ```
-Studies not found are logged into missing-studies-[Y]-[m]-[d]-[H]-[M]-[S].txt.
+Studies not found are logged into missing-studies-Y-m-d-H-M-S.txt.
 ```
 2025-03-14 14:35:26
 PatientID, StudyDate
