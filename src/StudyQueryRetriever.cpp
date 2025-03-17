@@ -41,7 +41,7 @@ OFCondition QueryRetriever::setupAssociation()
 		return cond;
 	}
 
-	ASC_setAPTitles(this->m_params, this->m_callerAETitle.c_str(), this->m_calledAETitle.c_str(), NULL);
+	ASC_setAPTitles(this->m_params, this->m_callerAETitle.c_str(), this->m_calledAETitle.c_str(), nullptr);
 
 	cond = ASC_setTransportLayerType(this->m_params, this->m_secureConnection);
 	if (cond.bad())
@@ -51,8 +51,8 @@ OFCondition QueryRetriever::setupAssociation()
 		return cond;
 	}
 
-	std::string calledPresAddress{ fmt::format("{}:{}", this->m_calledIP, this->m_port).c_str() };
-	cond = ASC_setPresentationAddresses(this->m_params, OFStandard::getHostName().c_str(), calledPresAddress.c_str());
+	cond = ASC_setPresentationAddresses(this->m_params, OFStandard::getHostName().c_str(),
+		fmt::format("{}:{}", this->m_calledIP, this->m_port).c_str());
 
 	if (cond.bad())
 	{
@@ -87,7 +87,7 @@ OFCondition QueryRetriever::setupAssociation()
 	{
 		if (cond == DUL_ASSOCIATIONREJECTED)
 		{
-			T_ASC_RejectParameters rejectParams;
+			T_ASC_RejectParameters rejectParams{};
 			ASC_getRejectParameters(this->m_params, &rejectParams);
 			OFLOG_FATAL(qrLogger, "Association rejected:");
 			OFLOG_FATAL(qrLogger, ASC_printRejectParameters(temp_string, &rejectParams));
@@ -167,9 +167,8 @@ OFCondition QueryRetriever::removeAssociation(const OFCondition& queryCondition)
 
 OFCondition QueryRetriever::addPresentationContext(const E_TransferSyntax outNetworkTransferSyntax,
 												   const T_ASC_PresentationContextID presID,
-												   const char* abstractSyntax)
-{
-	const char* transferSyntaxes[] = { NULL, NULL, NULL, NULL };
+												   const char* abstractSyntax) const {
+	const char* transferSyntaxes[] = { nullptr, nullptr, nullptr, nullptr };
 	int numTransferSyntaxes = 0;
 
 	switch (outNetworkTransferSyntax)
@@ -213,15 +212,11 @@ OFCondition QueryRetriever::addPresentationContext(const E_TransferSyntax outNet
 	return ASC_addPresentationContext(this->m_params, presID, abstractSyntax, transferSyntaxes, numTransferSyntaxes);
 }
 
-OFCondition QueryRetriever::performFindRequest(PatientRecord& patient_record, const std::string& modalities, QueryCallback* callback)
-{
-	T_ASC_PresentationContextID presID;
+OFCondition QueryRetriever::performFindRequest(PatientRecord& patient_record, const std::string& modalities, QueryCallback* callback) const {
 	T_DIMSE_C_FindRQ request{};
 	T_DIMSE_C_FindRSP response{};
 	DcmFileFormat fileformat;
 	OFString temp_string;
-
-	OFCondition cond;
 
 	DcmDataset* requestedDataset = fileformat.getDataset();
 	requestedDataset->putAndInsertString(DCM_QueryRetrieveLevel, "STUDY");
@@ -230,7 +225,8 @@ OFCondition QueryRetriever::performFindRequest(PatientRecord& patient_record, co
 	requestedDataset->putAndInsertString(DCM_StudyInstanceUID, "");
 	requestedDataset->putAndInsertString(DCM_ModalitiesInStudy, modalities.c_str());
 
-	presID = ASC_findAcceptedPresentationContextID(this->m_assoc, this->m_abstractSyntax.findSyntax);
+	const T_ASC_PresentationContextID presID = ASC_findAcceptedPresentationContextID(
+		this->m_assoc, this->m_abstractSyntax.findSyntax);
 	if (presID == 0)
 	{
 		OFLOG_FATAL(qrLogger, "No presentation context");
@@ -252,7 +248,7 @@ OFCondition QueryRetriever::performFindRequest(PatientRecord& patient_record, co
 	callback->setAssociation(this->m_assoc);
 	callback->setPresentationContextID(presID);
 
-	cond = EC_Normal;
+	OFCondition cond = EC_Normal;
 	while (cond.good() && repeatCount--)
 	{
 		DcmDataset* statusDetail = nullptr;
@@ -277,7 +273,7 @@ OFCondition QueryRetriever::performFindRequest(PatientRecord& patient_record, co
 OFCondition QueryRetriever::performMoveRequest(const PatientRecord& patient_record)
 {
 	OFCondition cond = EC_Normal;
-	int repeateCount{};
+	// int repeateCount{};
 
 	T_ASC_PresentationContextID presID;
 	T_DIMSE_C_MoveRQ request{};
@@ -301,7 +297,9 @@ OFCondition QueryRetriever::performMoveRequest(const PatientRecord& patient_reco
 				 sizeof(request.AffectedSOPClassUID));
 
 	if (this->m_moveDestination.empty())
-		ASC_getAPTitles(this->m_assoc->params, request.MoveDestination, sizeof(request.MoveDestination), NULL, 0, NULL, 0);
+		ASC_getAPTitles(this->m_assoc->params,
+			request.MoveDestination, sizeof(request.MoveDestination),
+			nullptr, 0, nullptr, 0);
 	else
 		std::strncpy(request.MoveDestination, this->m_moveDestination.c_str(), sizeof(request.MoveDestination));
 
@@ -311,7 +309,7 @@ OFCondition QueryRetriever::performMoveRequest(const PatientRecord& patient_reco
 	if (qrLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL))
 	{
 		OFLOG_INFO(qrLogger, "Sending Move Request");
-		OFLOG_DEBUG(qrLogger, DIMSE_dumpMessage(temp_string, request, DIMSE_OUTGOING, NULL, presID));
+		OFLOG_DEBUG(qrLogger, DIMSE_dumpMessage(temp_string, request, DIMSE_OUTGOING, nullptr, presID));
 	}
 	else
 	{
@@ -388,9 +386,6 @@ OFCondition QueryRetriever::performMoveRequest(const PatientRecord& patient_reco
 			OFLOG_DEBUG(qrLogger, "Status Detail:" << OFendl << DcmObject::PrintHelper(*statusDetail));
 			delete statusDetail;
 		}
-
-		if (responseIDs != nullptr)
-			delete responseIDs;
 	}
 	return cond;
 }
@@ -411,8 +406,7 @@ void QueryCallback::setPresentationContextID(T_ASC_PresentationContextID presID)
 }
 
 QueryDefaultCallback::QueryDefaultCallback(int cancelAfterNResponses) :
-	QueryCallback(),
-	m_cancelAfterNResponses(cancelAfterNResponses) {}
+m_cancelAfterNResponses(cancelAfterNResponses) {}
 
 void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ* request,
 									int responseCount,
@@ -495,7 +489,9 @@ OFCondition DIMSE_queryUser(T_ASC_Association* assoc,
 
 	msgID = request->MessageID;
 
-	OFCondition cond = DIMSE_sendMessageUsingMemoryData(assoc, presID, &req, NULL, requestIdentifiers, NULL, NULL);
+	OFCondition cond = DIMSE_sendMessageUsingMemoryData(assoc, presID, &req,
+		nullptr, requestIdentifiers,
+		nullptr, nullptr);
 
 	if (cond.bad()) return cond;
 
@@ -547,7 +543,7 @@ OFCondition DIMSE_queryUser(T_ASC_Association* assoc,
 				DCMNET_WARN(DIMSE_warn_str(assoc) << "Assuming response identifiers are present");
 			}
 
-			cond = DIMSE_receiveDataSetInMemory(assoc, blockMode, timeout, &presID, &rspIDs, NULL, NULL);
+			cond = DIMSE_receiveDataSetInMemory(assoc, blockMode, timeout, &presID, &rspIDs, nullptr, nullptr);
 			if (cond != EC_Normal)
 				return cond;
 
@@ -596,7 +592,7 @@ OFCondition DIMSE_moveUser_(T_ASC_Association* assoc,
 	T_DIMSE_Message req{}, rsp{};
 	DIC_US msgID;
 	int responseCount{ 0 };
-	T_ASC_Association* subAssoc = NULL;
+	T_ASC_Association *subAssoc = nullptr;
 	DIC_US status = STATUS_MOVE_Pending_SubOperationsAreContinuing;
 	OFBool firstLoop{ OFTrue };
 
@@ -608,7 +604,8 @@ OFCondition DIMSE_moveUser_(T_ASC_Association* assoc,
 	req.msg.CMoveRQ = *request;
 	msgID = request->MessageID;
 
-	OFCondition cond = DIMSE_sendMessageUsingMemoryData(assoc, pres_id, &req, NULL, request_identifiers, NULL, NULL);
+	OFCondition cond = DIMSE_sendMessageUsingMemoryData(assoc, pres_id, &req,
+		nullptr, request_identifiers, nullptr, nullptr);
 	if (cond != EC_Normal)
 		return cond;
 
@@ -669,11 +666,11 @@ OFCondition DIMSE_moveUser_(T_ASC_Association* assoc,
 		switch (status)
 		{
 		case STATUS_MOVE_Pending_SubOperationsAreContinuing:
-			if (*status_detail != NULL)
+			if (*status_detail != nullptr)
 			{
 				DCMNET_WARN(DIMSE_warn_str(assoc) << "moveUser: Pending with statusDetail, ignoring detail");
 				delete *status_detail;
-				*status_detail = NULL;
+				*status_detail = nullptr;
 			}
 
 			if (response->DataSetType != DIMSE_DATASET_NULL)

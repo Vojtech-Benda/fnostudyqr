@@ -81,9 +81,9 @@ std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &csvFi
 			if (line.empty()) continue;
 
 			PatientRecord record;
-			std::size_t firstPeriodPos{ line.find(",") };
-			std::size_t secondPeriodPos{ line.find(",", firstPeriodPos + 1) };
-			std::size_t thirdPeriodPos{ line.find(",", secondPeriodPos + 1) };
+			std::size_t firstPeriodPos{ line.find(',') };
+			std::size_t secondPeriodPos{ line.find(',', firstPeriodPos + 1) };
+			std::size_t thirdPeriodPos{ line.find(',', secondPeriodPos + 1) };
 			record.m_name = line.substr(0, firstPeriodPos);
 			record.m_id = line.substr(firstPeriodPos + 1, secondPeriodPos - firstPeriodPos - 1);
 			record.m_study_date = line.substr(secondPeriodPos + 1, thirdPeriodPos - secondPeriodPos - 1);
@@ -100,16 +100,16 @@ std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &csvFi
 				continue;
 			}
 
-			if (std::any_of(record.m_id.begin(), record.m_id.end(), ::isalpha))
+			if (std::ranges::any_of(record.m_id, ::isalpha))
 			{
-				const std::string msg = fmt::format("ID \"{}\" contains non-numeric characters", record.m_id);
+				const std::string msg = fmt::format(R"(ID "{}" contains non-numeric characters)", record.m_id);
 				fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 				continue;
 			}
 
-			if (std::any_of(record.m_study_date.begin(), record.m_study_date.end(), ::isalpha))
+			if (std::ranges::any_of(record.m_study_date, ::isalpha))
 			{
-				const std::string msg = fmt::format("ID \"{}\" with Study Date \"{}\" contains alphabet characters", record.m_id, record.m_study_date);
+				const std::string msg = fmt::format(R"(ID "{}" with Study Date "{}" contains alphabet characters)", record.m_id, record.m_study_date);
 				fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 				continue;
 			}
@@ -117,7 +117,11 @@ std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &csvFi
 			record.m_name = nameToDcmFormat(record.m_name);
 			record.m_study_date = dateToDcmFormat(record.m_study_date);
 
-			if (recordExists(recordList, record))
+			bool recordExists = std::ranges::any_of(recordList, [&](const PatientRecord &rec) {
+				return rec.m_id == record.m_id && rec.m_study_date == record.m_study_date;
+			});
+
+			if (recordExists)
 			{
 				const std::string msg = fmt::format("PatientID {}: StudyDate: {}", record.m_id, record.m_study_date);
 				fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "POSSIBLE DUPLICATE IN TEXT FILE"));
@@ -180,8 +184,8 @@ StudyRecordMap readPatientRecords(std::ifstream& csvfile)
 
 static std::string nameToDcmFormat(std::string& fullname)
 {
-	fullname.erase(std::remove_if(fullname.begin(), fullname.end(), ::isdigit), fullname.end());
-	std::size_t ws_pos = fullname.find(" ");
+	std::erase_if(fullname, ::isdigit);
+	const std::size_t ws_pos = fullname.find(' ');
 
 	if (ws_pos == std::string::npos)
 	{
@@ -189,30 +193,17 @@ static std::string nameToDcmFormat(std::string& fullname)
 	}
 	std::string firstname = fullname.substr(0, ws_pos);
 	std::string lastname = fullname.substr(ws_pos + 1, std::string::npos);
-	firstname.erase(std::remove_if(firstname.begin(), firstname.end(), ::iswspace), firstname.end());
-	lastname.erase(std::remove_if(lastname.begin(), lastname.end(), ::iswspace), lastname.end());
+	std::erase_if(firstname, ::iswspace);
+	std::erase_if(lastname, ::iswspace);
 	return fmt::format("{}^{}", lastname, firstname);
 }
 
 static std::string dateToDcmFormat(const std::string& date)
 {
-	std::size_t firstPeriodPos = date.find(".");
-	std::size_t secondPeriodPos = date.find(".", firstPeriodPos + 1);
+	const std::size_t firstPeriodPos = date.find('.');
+	const std::size_t secondPeriodPos = date.find('.', firstPeriodPos + 1);
 	int day = std::stoi(date.substr(0, firstPeriodPos));
 	int month = std::stoi(date.substr(firstPeriodPos + 1, secondPeriodPos - firstPeriodPos - 1));
 	int year = std::stoi(date.substr(secondPeriodPos + 1, std::string::npos));
 	return fmt::format("{}{:02}{:02}", year, month, day);
 }
-
-static bool recordExists(const std::vector<PatientRecord> &record_list, const PatientRecord &new_record)
-{
-	return std::any_of(record_list.begin(), record_list.end(), [&](const PatientRecord &rec)
-	{
-		return rec.m_id == new_record.m_id && rec.m_study_date == new_record.m_study_date;
-	});
-}
-
-//static std::string concatenateStudyDate(const std::string& old_study_date, const std::string& new_study_date)
-//{
-//	return old_study_date + "\\" + new_study_date;
-//}

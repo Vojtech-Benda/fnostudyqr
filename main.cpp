@@ -35,8 +35,8 @@ int main(int argc, char* argv[]) {
 
     OFLogger mainLogger = OFLog::getLogger(fmt::format("dcmtk.apps.{}", FNO_CONSOLE_APPLICATION).c_str());
 
-    const int SHORTCOL{ 4 };
-    const int LONGCOL{ 20 };
+    constexpr int SHORTCOL{ 4 };
+    constexpr int LONGCOL{ 20 };
     const char *APPLICATION_TITLE{ "FNOSTUDYQR" };
     const char *PEER_APPLICATION_TITLE{ "STORESCP" };
 
@@ -49,9 +49,9 @@ int main(int argc, char* argv[]) {
     // const char *        opt_callerIP{ nullptr }; // ip address of application user
     OFCmdUnsignedInt    opt_peerPort{ 0 }; // tcp/ip port of peer
     OFCmdUnsignedInt    opt_recievePort{ 0 }; // retrieve port to receive data
-    const char *        opt_aeCaller{ nullptr }; // ae-caller/aec
-    const char *        opt_aePacs{ nullptr }; // ae-pacs/aep
-    const char *        opt_aeReceiver{ nullptr }; // ae-receiver/aer
+    const char *        opt_aeCaller{ APPLICATION_TITLE }; // ae-caller/aec
+    const char *        opt_aePacs{ PEER_APPLICATION_TITLE }; // ae-pacs/aep
+    const char *        opt_aeReceiver{ APPLICATION_TITLE }; // ae-receiver/aer
     const char *        opt_outputDirectory{ nullptr };
     const char *        opt_filepath{ nullptr };
     bool                opt_overwriteModalities{ E_OverwriteModalites::OVERWRITE_MODALITIES_NONE };
@@ -80,9 +80,10 @@ int main(int argc, char* argv[]) {
     cmd.addOption("--ae-pacs", "-aep", 1,
         "[a]etitle: string",
         fmt::format("set called AE title of peer (default: {})", PEER_APPLICATION_TITLE).c_str());
-    cmd.addOption("--ae-receiver", "-aer", 1,
-        "[a]etitle: string",
-        fmt::format("set move destination AE title (default: {})", APPLICATION_TITLE).c_str());
+    // TODO maybe add it in the future
+    // cmd.addOption("--ae-receiver", "-aer", 1,
+    //     "[a]etitle: string",
+    //     fmt::format("set move destination AE title (default: {})", APPLICATION_TITLE).c_str());
 
     cmd.addSubGroup("port for incoming network associations:");
     cmd.addOption("--receive-port", "-port", 1,
@@ -90,7 +91,7 @@ int main(int argc, char* argv[]) {
         "port number for incoming associations");
 
     cmd.addGroup("input options:");
-    cmd.addOption("--patient-list-file", "-listf", 1,
+    cmd.addOption("--patient-list-file", "-plist", 1,
         "[c]sv: string path",
         "text file with patient/study information to query/retrieve\nrequired order: PatientName,PatientID,StudyDate,(Modality)");
     cmd.addOption("--overwrite-modality-all", "-oma",
@@ -101,7 +102,7 @@ int main(int argc, char* argv[]) {
     cmd.addGroup("output options:");
     cmd.addOption("--output-directory", "-od", 1,
 
-    "[d]irectory: string (default: \"./download\")",
+    R"([d]irectory: string (default: "./download")",
     "write received data to directory d");
 
     prepareCmdLineArgs(argc, argv, FNO_CONSOLE_APPLICATION);
@@ -127,14 +128,14 @@ int main(int argc, char* argv[]) {
         if (cmd.findOption("--ae-caller"))
         {
             app.checkValue(cmd.getValue(opt_aeCaller));
-            queryRetriever.m_callerAETitle = opt_aeCaller;
         }
+        queryRetriever.m_callerAETitle = opt_aeCaller;
 
         if (cmd.findOption("--ae-pacs"))
         {
             app.checkValue(cmd.getValue(opt_aePacs));
-            queryRetriever.m_calledAETitle = opt_aePacs;
         }
+        queryRetriever.m_calledAETitle = opt_aePacs;
 
         if (cmd.findOption("--receive-port"))
         {
@@ -210,7 +211,7 @@ int main(int argc, char* argv[]) {
         return EXITCODE_EMPTY_RECORD_MAP;
     }
 
-    std::cout << "Modalities to query for (ex. CT, MR\\CT, CR\\US\\XA): ";
+    std::cout << R"(Modalities to query for (ex. CT, MR\CT, CR\US\XA): )";
     std::string modalitiesToQuery{};
     std::cin >> modalitiesToQuery;
 
@@ -220,9 +221,9 @@ int main(int argc, char* argv[]) {
         return EXITCODE_NO_MODALITIES_SPECIFIED;
     }
 
-    std::replace_if(modalitiesToQuery.begin(), modalitiesToQuery.end(),
-                    [](char c) { return c == '/'; },
-                    '\\');
+    std::ranges::replace_if(modalitiesToQuery,
+                            [](const char c) { return c == '/'; },
+                            '\\');
     if (mainLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL))
 		OFLOG_DEBUG(mainLogger, "Specified modalities contain forward slash, modified to backslash\n");
 

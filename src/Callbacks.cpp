@@ -103,7 +103,7 @@ OFCondition acceptSubAssoc(T_ASC_Network *assoc_net, T_ASC_Association **assoc)
 		// accept the verification SOP class if presented, @ dcmtk/dcmnet/movescu.cc line 1246
 		cond = ASC_acceptContextsWithPreferredTransferSyntaxes((*assoc)->params,
 															   knownAbstractSyntaxes,
-															   DIM_OF(knownAbstractSyntaxes),
+															   std::size(knownAbstractSyntaxes),
 															   transferSyntaxes,
 															   numTransferSyntaxes);
 
@@ -141,7 +141,7 @@ OFCondition subOpSCP(T_ASC_Association **sub_assoc,
 							T_DIMSE_BlockingMode block_mode,
 							int dimse_timeout)
 {
-	T_DIMSE_Message message;
+	T_DIMSE_Message message{};
 	T_ASC_PresentationContextID presID;
 
 	if (!ASC_dataWaiting(*sub_assoc, 0))
@@ -166,7 +166,7 @@ OFCondition subOpSCP(T_ASC_Association **sub_assoc,
 			cond = DIMSE_BADCOMMANDTYPE;
 			DCMNET_ERROR(fmt::format("Expected C-ECHO or C-STORE request but received DIMSE command {:#04x}",
 						  static_cast<unsigned>(message.CommandField)));
-			DCMNET_DEBUG(DIMSE_dumpMessage(temp_string, message, DIMSE_INCOMING, NULL, presID));
+			DCMNET_DEBUG(DIMSE_dumpMessage(temp_string, message, DIMSE_INCOMING, nullptr, presID));
 			break;
 		}
 	}
@@ -265,10 +265,6 @@ void storeSCPCallback(
 				{
 					out_response->DimseStatus = STATUS_STORE_Error_DataSetDoesNotMatchSOPClass;
 				}
-				else if (strcmp(sopInstance, in_request->AffectedSOPInstanceUID) != 0)
-				{
-					out_response->DimseStatus = STATUS_STORE_Error_DataSetDoesNotMatchSOPClass;
-				}
 			}
 		}
 	}
@@ -276,10 +272,10 @@ void storeSCPCallback(
 
 OFCondition storeSCP(T_ASC_Association *assoc,
 					 T_DIMSE_Message *message,
-					 T_ASC_PresentationContextID pres_id,
-					 std::string &output_directory,
-					 T_DIMSE_BlockingMode block_mode,
-					 int dimse_timeout)
+					 const T_ASC_PresentationContextID pres_id,
+					 const std::string &output_directory,
+					 const T_DIMSE_BlockingMode block_mode,
+					 const int dimse_timeout)
 {
 	OFCondition cond = EC_Normal;
 	T_DIMSE_C_StoreRQ *request = &message->msg.CStoreRQ;
@@ -290,12 +286,7 @@ OFCondition storeSCP(T_ASC_Association *assoc,
 						 request->AffectedSOPInstanceUID);
 	OFStandard::sanitizeFilename(filename);
 	OFString ofname;
-	OFStandard::combineDirAndFilename(ofname, output_directory.c_str(), filename, OFTrue);
-	OFString temp_string;
-
-	//fmt::print("Received Store Request (MsgID {}), {}OT\n",
-	//			 request->MessageID,
-	//			 dcmSOPClassUIDToModality(request->AffectedSOPClassUID));
+	OFStandard::combineDirAndFilename(ofname, output_directory, filename, OFTrue);
 
 	StoreCallbackData storeCallbackData;
 	storeCallbackData.m_assoc = assoc;
@@ -310,14 +301,13 @@ OFCondition storeSCP(T_ASC_Association *assoc,
 			fileformat.getMetaInfo()->putAndInsertString(DCM_SourceApplicationEntityTitle, aet);
 	}
 
-	DcmDataset *dset = fileformat.getDataset();
-
 	cond = DIMSE_storeProvider(assoc, pres_id, request, ofname.c_str(), OFTrue /* write file with meta header */,
-							   NULL, storeSCPCallback, OFreinterpret_cast(void *, &storeCallbackData),
+							   nullptr, storeSCPCallback, OFreinterpret_cast(void *, &storeCallbackData),
 							   block_mode, dimse_timeout);
 
 	if (cond.bad())
 	{
+		OFString temp_string;
 		DCMNET_ERROR("Store SCP Failed: " << DimseCondition::dump(temp_string, cond));
 		if (strcmp(filename, NULL_DEVICE_NAME) != 0)
 			OFStandard::deleteFile(ofname);
@@ -329,21 +319,21 @@ OFCondition storeSCP(T_ASC_Association *assoc,
 
 OFCondition echoSCP(T_ASC_Association *assoc,
 						   T_DIMSE_Message *message,
-						   T_ASC_PresentationContextID presID)
+						   const T_ASC_PresentationContextID pres_id)
 {
 	OFString temp_string;
 	T_DIMSE_C_EchoRQ *request = &message->msg.CEchoRQ;
 	if (DCM_dcmnetLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL))
 	{
 		DCMNET_INFO("Received ECHO Request (MsgID " << request->MessageID << ")");
-		DCMNET_DEBUG(DIMSE_dumpMessage(temp_string, *request, DIMSE_INCOMING, NULL, presID));
+		DCMNET_DEBUG(DIMSE_dumpMessage(temp_string, *request, DIMSE_INCOMING, nullptr, pres_id));
 	}
 	else
 	{
 		DCMNET_INFO("Received Echo Request (MsgID " << request->MessageID << ")");
 	}
 
-	OFCondition cond = DIMSE_sendEchoResponse(assoc, presID, request, STATUS_Success, nullptr);
+	OFCondition cond = DIMSE_sendEchoResponse(assoc, pres_id, request, STATUS_Success, nullptr);
 	if (cond.bad())
 		DCMNET_ERROR("Echo SCP Failed: " << DimseCondition::dump(temp_string, cond));
 

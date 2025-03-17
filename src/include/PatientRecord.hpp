@@ -80,7 +80,6 @@ std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &csvFi
 //StudyRecordMap readPatientRecords(std::ifstream& csvfile);
 static std::string nameToDcmFormat(std::string& fullname);
 static std::string dateToDcmFormat(const std::string& date);
-static bool recordExists(const std::vector<PatientRecord> &recordList, const PatientRecord &record);
 //static std::string concatenateStudyDate(const std::string& old_study_date, const std::string& new_study_date);
 
 

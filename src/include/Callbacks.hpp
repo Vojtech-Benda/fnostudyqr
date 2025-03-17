@@ -76,14 +76,14 @@ void subOpCallback(void * /* subOpCallbackData */,
 
 OFCondition storeSCP(T_ASC_Association *assoc,
 					 T_DIMSE_Message *message,
-					 T_ASC_PresentationContextID presID,
-					 std::string &output_directory,
+					 T_ASC_PresentationContextID pres_id,
+					 const std::string &output_directory,
 					 T_DIMSE_BlockingMode block_mode,
 					 int dimse_timeout);
 
 OFCondition echoSCP(T_ASC_Association *assoc,
 					T_DIMSE_Message *message,
-					T_ASC_PresentationContextID presID);
+					T_ASC_PresentationContextID pres_id);
 
 OFCondition acceptSubAssoc(T_ASC_Network *assoc_net,
 						   T_ASC_Association **assoc);

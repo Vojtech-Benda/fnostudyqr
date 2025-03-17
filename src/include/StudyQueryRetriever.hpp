@@ -6,7 +6,6 @@
 #define STUDYQUERYRETRIEVER_HPP
 
 #include <string>
-#include <string_view>
 
 #include "dcmtk/config/osconfig.h"
 #include "dcmtk/ofstd/ofstd.h"
@@ -23,7 +22,6 @@
 #include "dcmtk/oflog/oflog.h"
 
 #include "fmt/format.h"
-#include "fmt/color.h"
 
 #include "PatientRecord.hpp"
 #include "Callbacks.hpp"
@@ -71,21 +69,21 @@ public:
 	OFCondition dropNetwork();
 	OFCondition setupAssociation();
 	OFCondition removeAssociation(const OFCondition& queryCondition);
-	OFCondition addPresentationContext(const E_TransferSyntax outNetworkTransferSyntax,
-									   const T_ASC_PresentationContextID presID,
-									   const char* abstractSyntax);
+	OFCondition addPresentationContext(E_TransferSyntax outNetworkTransferSyntax,
+									   T_ASC_PresentationContextID presID,
+									   const char* abstractSyntax) const;
 	OFCondition performFindRequest(PatientRecord& patient_record,
 								   const std::string& modalities,
-								   QueryCallback* callback);
+								   QueryCallback* callback) const;
 	OFCondition performMoveRequest(const PatientRecord& patient_record);
 
 	std::string				m_callerIP{}; // ip address of application user
 	std::string				m_calledIP{}; // hostname of PACS (DICOM peer)
 	unsigned short			m_port{ 0 }; // tcp/ip port of peer
 	unsigned short			m_retrievePort{ 0 };
-	std::string				m_callerAETitle{}; // aet
-	std::string				m_calledAETitle{}; // aec
-	std::string				m_moveDestination{}; // aem
+	std::string				m_callerAETitle{}; // aec
+	std::string				m_calledAETitle{}; // aep
+	std::string				m_moveDestination{}; // aer
 	std::string				m_outputDirectory{ "./download" };
 	std::string				m_studyDirectory{};
 
@@ -108,7 +106,7 @@ class QueryCallback
 {
 public:
 	QueryCallback();
-	virtual ~QueryCallback() {};
+	virtual ~QueryCallback() = default;
 
 	virtual void callback(T_DIMSE_C_FindRQ* request,
 						  int responseCount,
@@ -121,23 +119,19 @@ public:
 protected:
 	T_ASC_Association* m_assoc;
 	T_ASC_PresentationContextID m_presID;
-
-private:
-	// QueryCallback(const QueryCallback& other);
-	// QueryCallback& operator=(const QueryCallback& other);
 };
 
-class QueryDefaultCallback : public QueryCallback
+class QueryDefaultCallback final : public QueryCallback
 {
 public:
-	QueryDefaultCallback(const int cancelAfterNResponses);
-	virtual ~QueryDefaultCallback() {};
+	explicit QueryDefaultCallback(int cancelAfterNResponses);
+	~QueryDefaultCallback() override = default;
 
-	virtual void callback(T_DIMSE_C_FindRQ* request,
+	void callback(T_DIMSE_C_FindRQ* request,
 						  int responseCount,
 						  T_DIMSE_C_FindRSP* response,
 						  DcmDataset* reponseIdentifiers,
-						  std::vector<std::string>& uid_list);
+						  std::vector<std::string>& uid_list) override;
 private:
 	const int m_cancelAfterNResponses{ 0 };
 };
