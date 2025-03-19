@@ -12,92 +12,90 @@
 #include "dcmtk/dcmnet/dimse.h"
 #include "dcmtk/dcmnet/diutil.h"
 
-#include <fmt/format.h>
+#include "fmt/format.h"
 
-typedef struct
-{
-	T_ASC_Association *assoc;
+typedef struct {
+	T_ASC_Association *         assoc;
 	T_ASC_PresentationContextID presID;
 } MoveCallbackInfo;
 
-struct StoreCallbackData
-{
-	OFString m_filename;
-	DcmFileFormat *m_fileformat{ nullptr };
-	T_ASC_Association *m_assoc{ nullptr };
+struct StoreCallbackData {
+	OFString           m_filename;
+	DcmFileFormat *    m_fileformat{nullptr};
+	T_ASC_Association *m_assoc{nullptr};
 };
 
 typedef void (*DIMSE_MoveUserCallback_)(
 	/* in */
-	void *callbackData,
-	T_DIMSE_C_MoveRQ *request,
-	int responseCount,
-	int cancelAfterNResponses,
+	void *             callbackData,
+	T_DIMSE_C_MoveRQ * request,
+	int                responseCount,
+	int                cancelAfterNResponses,
 	T_DIMSE_C_MoveRSP *response);
 
 typedef void (*DIMSE_SubOpProviderCallback_)(
-	void *subOpCallbackData,
-	T_ASC_Network *net,
-	T_ASC_Association **subOpAssoc,
-	std::string& output_directory,
+	void *               subOpCallbackData,
+	T_ASC_Network *      net,
+	T_ASC_Association ** subOpAssoc,
+	const std::string &  output_directory,
 	T_DIMSE_BlockingMode block_mode,
-	int dimse_timeout);
+	int                  dimse_timeout);
 
-void moveCallback(void *move_callback_data,
-				  T_DIMSE_C_MoveRQ *request,
-				  int response_count,
-				  int cancel_after_n_responses,
-				  T_DIMSE_C_MoveRSP *response);
+void moveCallback(void *             move_callback_data,
+                  T_DIMSE_C_MoveRQ * request,
+                  int                response_count,
+                  int                cancel_after_n_responses,
+                  T_DIMSE_C_MoveRSP *response);
 
 void subOpMoveCallback(void *,
-					   T_ASC_Network *assoc_net,
-					   T_ASC_Association **sub_assoc,
-					   std::string &output_directory,
-					   T_DIMSE_BlockingMode block_mode,
-					   int dimse_timeout);
+                       T_ASC_Network *      assoc_net,
+                       T_ASC_Association ** sub_assoc,
+                       std::string &        output_directory,
+                       T_DIMSE_BlockingMode block_mode,
+                       int                  dimse_timeout);
 
-void storeSCPCallback(/* in */
-					  void *store_callback_data,
-					  T_DIMSE_StoreProgress *progress,
-					  T_DIMSE_C_StoreRQ *in_request,
-					  char *filename,
-					  DcmDataset **in_dataset,
-					  /* out */
-					  T_DIMSE_C_StoreRSP *out_response,
-					  DcmDataset **status_detail);
+void storeSCPCallback( /* in */
+	void *                 store_callback_data,
+	T_DIMSE_StoreProgress *progress,
+	T_DIMSE_C_StoreRQ *    in_request,
+	char *                 filename,
+	DcmDataset **          in_dataset,
+	/* out */
+	T_DIMSE_C_StoreRSP *out_response,
+	DcmDataset **       status_detail);
 
 void subOpCallback(void * /* subOpCallbackData */,
-				   T_ASC_Network *assoc_net,
-				   T_ASC_Association **sub_assoc,
-				   std::string &output_directory,
-				   T_DIMSE_BlockingMode block_mode,
-				   int dimse_timeout);
+                   T_ASC_Network *            assoc_net,
+                   T_ASC_Association **       sub_assoc,
+                   const std::string &        output_directory,
+                   T_DIMSE_BlockingMode block_mode,
+                   int                        dimse_timeout);
 
 
-OFCondition storeSCP(T_ASC_Association *assoc,
-					 T_DIMSE_Message *message,
-					 T_ASC_PresentationContextID pres_id,
-					 const std::string &output_directory,
-					 T_DIMSE_BlockingMode block_mode,
-					 int dimse_timeout);
+OFCondition storeSCP(T_ASC_Association *         assoc,
+                     T_DIMSE_Message *           message,
+                     T_ASC_PresentationContextID pres_id,
+                     const std::string &         output_directory,
+                     T_DIMSE_BlockingMode        block_mode,
+                     int                         dimse_timeout);
 
-OFCondition echoSCP(T_ASC_Association *assoc,
-					T_DIMSE_Message *message,
-					T_ASC_PresentationContextID pres_id);
+OFCondition echoSCP(T_ASC_Association *         assoc,
+                    T_DIMSE_Message *           message,
+                    T_ASC_PresentationContextID pres_id);
 
-OFCondition acceptSubAssoc(T_ASC_Network *assoc_net,
-						   T_ASC_Association **assoc);
+OFCondition acceptSubAssoc(T_ASC_Network *     assoc_net,
+                           T_ASC_Association **assoc);
 
-OFCondition subOpSCP(T_ASC_Association **sub_assoc,
-					 std::string &output_directory,
-					 T_DIMSE_BlockingMode block_mode,
-					 int dimse_timeout);
+OFCondition subOpSCP(T_ASC_Association ** sub_assoc,
+                     const std::string &  output_directory,
+                     T_DIMSE_BlockingMode block_mode,
+                     int                  dimse_timeout);
 
-int selectReadable(T_ASC_Association *assoc,
-				  T_ASC_Network *net,
-				  T_ASC_Association *sub_assoc,
-				  T_DIMSE_BlockingMode block_mode,
-				  int timeout);
+int selectReadable(T_ASC_Association *  assoc,
+                   T_ASC_Network *      net,
+                   T_ASC_Association *  sub_assoc,
+                   T_DIMSE_BlockingMode block_mode,
+                   int                  timeout);
 
 
 #endif //CALLBACKS_HPP
