@@ -6,10 +6,9 @@
 #define PATIENTRECORD_HPP
 
 #include <string>
+#include <string_view>
 #include <vector>
 #include <filesystem>
-
-#include "fmt/format.h"
 
 struct PatientRecord {
 	std::string              m_id{};
@@ -19,6 +18,12 @@ struct PatientRecord {
 	std::vector<std::string> m_uid_list{};
 
 	PatientRecord() = default;
+
+	PatientRecord(const std::string_view id,
+	              const std::string_view name,
+	              const std::string_view study_date) : m_id{id},
+	                                                   m_name{name},
+	                                                   m_study_date{study_date} {}
 
 	PatientRecord(const std::string &id,
 	              const std::string &name,
