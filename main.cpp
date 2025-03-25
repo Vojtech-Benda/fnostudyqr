@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
     }
 
     fmt::print("READING TEXT FILE ------------------------- \n");
-    std::vector<PatientRecord> recordList = readPatientRecords(filepath);
+    std::vector<PatientRecord> recordList = readPatientRecords(filepath.string());
 
     if (!recordList.empty())
         fmt::print("Found {} records to query\n", recordList.size());

@@ -3,8 +3,10 @@
 //
 
 #include "PatientRecord.hpp"
+
 #include <algorithm>
 #include <fstream>
+
 #include "fmt/format.h"
 #include "fmt/color.h"
 
@@ -51,11 +53,11 @@ auto checkRecord = [](const PatientRecord &record) {
 	return checkFailed;
 };
 
-std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &textFilePath) {
+std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath) {
 	std::ifstream fileObject{textFilePath, std::ios::in};
 
 	if (!fileObject.is_open()) {
-		fmt::print("Unable to open text file {}\n", textFilePath.string());
+		fmt::print("Unable to open text file {}\n", textFilePath);
 		return {};
 	}
 

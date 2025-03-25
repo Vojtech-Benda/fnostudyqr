@@ -8,7 +8,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <filesystem>
 
 struct PatientRecord {
 	std::string              m_id{};
@@ -28,7 +27,7 @@ struct PatientRecord {
 	~PatientRecord() = default;
 };
 
-std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &textFilePath);
+std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath);
 
 static std::string nameToDcmFormat(const std::string &fullname);
 

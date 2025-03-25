@@ -1,9 +1,11 @@
 //
 // Created by Vojtěch on 17.03.2025.
 //
+#include <filesystem>
 
-#include "include/StudyQueryRetriever.hpp"
+#include "StudyQueryRetriever.hpp"
 #include "fmt/color.h"
+
 
 QueryRetriever::QueryRetriever()
 	: m_net(nullptr) {}
