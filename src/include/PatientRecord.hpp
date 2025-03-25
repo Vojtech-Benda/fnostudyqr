@@ -25,14 +25,6 @@ struct PatientRecord {
 	                                                   m_name{name},
 	                                                   m_study_date{study_date} {}
 
-	PatientRecord(const std::string &id,
-	              const std::string &name,
-	              const std::string &study_date,
-	              const std::string &modality) : m_id{id},
-	                                             m_name{name},
-	                                             m_study_date{study_date},
-	                                             m_modality{modality} {}
-
 	~PatientRecord() = default;
 };
 
