@@ -29,9 +29,10 @@ struct PatientRecord {
 
 std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath);
 
-static std::string nameToDcmFormat(const std::string &fullname);
+static std::string nameToDcmFormat(std::string_view fullname);
 
-static std::string dateToDcmFormat(const std::string &date);
+static std::string dateToDcmFormat(std::string_view date);
 
+static std::string idToDcmFormat(std::string_view id);
 
 #endif //PATIENTRECORD_HPP

@@ -10,7 +10,7 @@
 #include "fmt/format.h"
 #include "fmt/color.h"
 
-auto splitString = [](const std::string &line, const char delimiter = ',', const std::size_t parts = 4) {
+auto splitString = [](std::string_view line, const char delimiter = ',', const std::size_t parts = 4) {
 	std::vector<std::string> tokens(parts, "");
 
 	std::size_t start{0}, end;
@@ -69,21 +69,9 @@ std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath) {
 
 			auto tokens = splitString(line); // tokens[name, id, study_date, modality]
 
-			// remove possible '/' in id and alphabet characters
-			std::erase(tokens[1], '/');
-			std::erase_if(tokens[1], ::isalpha);
-
-			// IMPORTANT FOR PACS:
-			// ids must be 10-digit length, otherwise querying could fail
-			// pad 9-digit IDs with leading zero
-			if (tokens[1].length() == 9) {
-				tokens[1].insert(0, 1, '0');
-			}
-
 			PatientRecord record{};
-
-			record.m_id = tokens[1];
-			record.m_name = nameToDcmFormat(tokens[0]);
+			record.m_id         = idToDcmFormat(tokens[1]);
+			record.m_name       = nameToDcmFormat(tokens[0]);
 			record.m_study_date = dateToDcmFormat(tokens[2]);
 
 			if (!tokens[3].empty()) {
@@ -113,7 +101,7 @@ std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath) {
 	return recordList;
 }
 
-static std::string nameToDcmFormat(const std::string &fullname) {
+std::string nameToDcmFormat(std::string_view fullname) {
 	auto tokens = splitString(fullname, ' ', 2); // tokens[lastname, firstname]
 
 	if (std::ranges::all_of(tokens, &std::string::empty))
@@ -126,7 +114,7 @@ static std::string nameToDcmFormat(const std::string &fullname) {
 	return fmt::format("{}^{}", tokens[1], tokens[0]);
 }
 
-static std::string dateToDcmFormat(const std::string &date) {
+std::string dateToDcmFormat(std::string_view date) {
 	auto tokens = splitString(date, '.', 3); // tokens[day, month, year]
 
 	for (auto &token : tokens) {
@@ -138,4 +126,21 @@ static std::string dateToDcmFormat(const std::string &date) {
 	                   std::stoi(tokens[2]),
 	                   std::stoi(tokens[1]),
 	                   std::stoi(tokens[0]));
+}
+
+std::string idToDcmFormat(std::string_view id) {
+	std::string mod_id{id};
+
+	// allow reading ids with forward slash
+	// remove possible alphabet characters
+	std::erase(mod_id, '/');
+	std::erase_if(mod_id, ::isalpha);
+
+	// IMPORTANT FOR PACS:
+	// ids must be 10-digit length, otherwise querying could fail
+	// pad 9-digit IDs with leading zero
+	if (mod_id.length() == 9) {
+		mod_id.insert(0, 1, '0');
+	}
+	return mod_id;
 }
