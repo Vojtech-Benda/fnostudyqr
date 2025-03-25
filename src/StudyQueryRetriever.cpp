@@ -16,7 +16,7 @@ QueryRetriever::~QueryRetriever() {
 
 OFCondition QueryRetriever::initializeNetwork() {
 	const T_ASC_NetworkRole role = (this->m_retrievePort > 0) ? NET_ACCEPTORREQUESTOR : NET_REQUESTOR;
-	return ASC_initializeNetwork(role, static_cast<int>(this->m_retrievePort), this->m_acseTimeout, &this->m_net);
+	return ASC_initializeNetwork(role, this->m_retrievePort, this->m_acseTimeout, &this->m_net);
 }
 
 OFCondition QueryRetriever::dropNetwork() {
