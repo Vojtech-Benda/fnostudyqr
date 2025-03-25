@@ -25,7 +25,7 @@ enum E_OverwriteModalites {
 int main(int argc, char *argv[]) {
     // const char *FNO_CONSOLE_APPLICATION{ "fnostudyqr" };
     constexpr auto    FNO_CONSOLE_APPLICATION{"fnostudyqr"};
-    constexpr auto *  APP_VERSION{"0.5.1"};
+    constexpr auto *  APP_VERSION{"0.6.1"};
     constexpr auto    APP_RELEASE_DATE{"2025-01-05"};
     const std::string rcsid = fmt::format("${}: ver. {} rel. {}\n$dcmtk: ver. {} rel. {}",
                                           FNO_CONSOLE_APPLICATION,
