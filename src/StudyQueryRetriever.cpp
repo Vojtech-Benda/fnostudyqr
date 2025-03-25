@@ -198,11 +198,13 @@ OFCondition QueryRetriever::performFindRequest(PatientRecord &patient_record, co
 	requestedDataset->putAndInsertString(DCM_PatientID, patient_record.m_id.c_str());
 	requestedDataset->putAndInsertString(DCM_StudyDate, patient_record.m_study_date.c_str());
 	requestedDataset->putAndInsertString(DCM_StudyInstanceUID, "");
+	requestedDataset->putAndInsertString(DCM_NumberOfStudyRelatedInstances, "");
 	requestedDataset->putAndInsertString(DCM_ModalitiesInStudy, modalities.c_str());
 
 	const T_ASC_PresentationContextID presID = ASC_findAcceptedPresentationContextID(
-	 this->m_assoc,
-	 this->m_abstractSyntax.findSyntax);
+		 this->m_assoc,
+		 this->m_abstractSyntax.findSyntax
+		);
 	if (presID == 0) {
 		OFLOG_FATAL(qrLogger, "No presentation context");
 		return DIMSE_NOVALIDPRESENTATIONCONTEXTID;
