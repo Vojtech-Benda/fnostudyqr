@@ -36,9 +36,9 @@ struct PatientRecord {
 	~PatientRecord() = default;
 };
 
-std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &csvFilePath);
+std::vector<PatientRecord> readPatientRecords(const std::filesystem::path &textFilePath);
 
-static std::string nameToDcmFormat(std::string &fullname);
+static std::string nameToDcmFormat(const std::string &fullname);
 
 static std::string dateToDcmFormat(const std::string &date);
 
