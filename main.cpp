@@ -15,10 +15,9 @@
 #include "PatientRecord.hpp"
 #include "StudyQueryRetriever.hpp"
 
-enum E_OverwriteModalites {
-    OVERWRITE_MODALITIES_NONE,
-    OVERWRITE_MODALITIES_ALL,
-    OVERWRITE_MODALITIES_MISSING
+enum E_addModalities {
+    ADD_MODALITIES_ALL,
+    ADD_MODALITIES_MISSING
 };
 
 
@@ -50,12 +49,11 @@ int main(int argc, char *argv[]) {
     OFCmdUnsignedInt opt_recievePort{0};                     // retrieve port to receive data
     const char *     opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aec
     const char *     opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aep
-    const char *     opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aer
-    const char *     opt_outputDirectory{nullptr};
-    const char *     opt_filepath{nullptr};
-    bool             opt_overwriteModalities{E_OverwriteModalites::OVERWRITE_MODALITIES_NONE};
-    bool             opt_writeMissingStudies{true};
-
+    // const char *     opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aer
+    const char *    opt_outputDirectory{nullptr};
+    const char *    opt_filepath{nullptr};
+    const char *    opt_queryModality{nullptr};
+    E_addModalities opt_addModalities{E_addModalities::ADD_MODALITIES_MISSING};
 
     cmd.setParamColumn(LONGCOL + SHORTCOL + 4);
     cmd.addParam("pacs-ip", "hostname of DICOM peer");
@@ -86,11 +84,12 @@ int main(int argc, char *argv[]) {
     cmd.addOption("--receive-port", "-port", 1, "[n]umber: integer", "port number for incoming associations");
 
     cmd.addGroup("input options:");
-    cmd.addOption("--patient-list-file", "-plist", 1, "[c]sv: string path",
+    cmd.addOption("--patient-list-file", "-plist", 1, "filepath: string path",
                   "text file with patient/study information to query/retrieve\nrequired order: PatientName,PatientID,StudyDate,(Modality)");
-    cmd.addOption("--overwrite-modality-all", "-oma", "overwrite modalities of all read patient records");
-    cmd.addOption("--overwrite-modality-missing", "-omm",
-                  "overwrite modality in read patient records with missing modality values");
+    cmd.addOption("--add-modality-missing", "-am", 1, "modality: string",
+                  "add modality to missing modalities in read patient records (default)");
+    cmd.addOption("--add-modality-all", "+am", 1, "modality: string",
+                  "add modality to all read patient records, overwrites read modalities");
 
     cmd.addGroup("output options:");
     cmd.addOption("--output-directory", "-od", 1, R"([d]irectory: string (default: "./download")",
@@ -136,11 +135,17 @@ int main(int argc, char *argv[]) {
         if (cmd.findOption("--patient-list-file"))
             app.checkValue(cmd.getValue(opt_filepath));
 
-        if (cmd.findOption("--overwrite-modality-all"))
-            opt_overwriteModalities = true;
+        cmd.beginOptionBlock();
+        if (cmd.findOption("--add-modality-missing")) {
+            opt_addModalities = E_addModalities::ADD_MODALITIES_MISSING;
+            app.checkValue(cmd.getValue(opt_queryModality));
+        }
 
-        if (cmd.findOption("--overwrite-modality-missing"))
-            opt_overwriteModalities = false;
+        if (cmd.findOption("--add-modality-all")) {
+            opt_addModalities = E_addModalities::ADD_MODALITIES_ALL;
+            app.checkValue(cmd.getValue(opt_queryModality));
+        }
+        cmd.endOptionBlock();
 
         OFLOG_DEBUG(mainLogger, rcsid.c_str() << OFendl);
 
@@ -186,35 +191,33 @@ int main(int argc, char *argv[]) {
         return EXITCODE_EMPTY_RECORD_MAP;
     }
 
-    std::cout << R"(Modalities to query for (ex. CT, MR\CT, CR\US\XA): )";
-    std::string modalitiesToQuery{};
-    std::cin >> modalitiesToQuery;
+    std::string queryModality{};
+    if (opt_queryModality == nullptr) {
+        std::cout << R"(Specify query modalities (ex. CT, MR\CT, CR\US\MG): )";
+        std::cin >> queryModality;
 
-    if (modalitiesToQuery.empty()) {
-        OFLOG_ERROR(mainLogger, "No modalities to query for");
-        return EXITCODE_NO_MODALITIES_SPECIFIED;
+        if (queryModality.empty()) {
+            OFLOG_ERROR(mainLogger, "Specified no modalities to query");
+            return EXITCODE_NO_MODALITIES_SPECIFIED;
+        }
+    } else {
+        queryModality = opt_queryModality;
     }
 
-    std::ranges::replace_if(modalitiesToQuery,
-                            [](const char c) { return c == '/'; },
-                            '\\');
-    if (mainLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL))
-        OFLOG_DEBUG(mainLogger, "Specified modalities contain forward slash, modified to backslash\n");
+    std::ranges::replace_if(queryModality, [](const char c) { return c == '/'; }, '\\');
 
-    //TODO: review this
-    // if (opt_overwriteModalities == E_OverwriteModalites::OVERWRITE_MODALITIES_ALL)
-    // {
-    // 	for (auto &record : recordList)
-    // 		record.m_modality = modalitiesToQuery;
-    // }
-    // else if (opt_overwriteModalities == E_OverwriteModalites::OVERWRITE_MODALITIES_MISSING)
-    // {
-    // 	for (auto &record : recordList)
-    // 	{
-    // 		if (record.m_modality.empty())
-    // 			record.m_modality = modalitiesToQuery;
-    // 	}
-    // }
+    for (auto& record : recordList) {
+        // add modality specified on cmd line
+        // reason: some records may have modality specified, some may not
+
+        // add to all
+        if (opt_addModalities == E_addModalities::ADD_MODALITIES_ALL) {
+            record.m_modality = queryModality;
+        } else {
+            // otherwise add only to records with no modality specified in text file
+            if (record.m_modality.empty()) record.m_modality = queryModality;
+        }
+    }
 
     OFCondition cond = queryRetriever.initializeNetwork();
     OFString temp_string;
@@ -247,7 +250,7 @@ int main(int argc, char *argv[]) {
     cond = EC_Normal;
 
     for (auto &record: recordList) {
-        cond = queryRetriever.performFindRequest(record, modalitiesToQuery, nullptr);
+        cond = queryRetriever.performFindRequest(record, queryModality, nullptr);
         const std::string msg = fmt::format("PatientID: {}, StudyDate: {}", record.m_id, record.m_study_date);
 
         if (record.m_uid_list.empty()) {
