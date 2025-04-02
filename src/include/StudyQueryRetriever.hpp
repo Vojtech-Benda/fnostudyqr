@@ -80,14 +80,14 @@ public:
 
 	OFCondition performMoveRequest(const PatientRecord &patient_record);
 
-	std::string    m_callerIP{}; // ip address of application user
-	std::string    m_calledIP{}; // hostname of PACS (DICOM peer)
 	unsigned short m_port{0};    // tcp/ip port of peer
 	unsigned short m_retrievePort{0};
+	std::string    m_callerIP{}; // ip address of application user
+	std::string    m_calledIP{}; // hostname of PACS (DICOM peer)
 	std::string    m_callerAETitle{};   // aec
 	std::string    m_calledAETitle{};   // aep
-	std::string    m_moveDestination{}; // aer
-	std::string    m_outputDirectory{"./download"};
+	std::string    m_receiverAETitle{}; // aer
+	std::string    m_outputDirectory{};
 	std::string    m_studyDirectory{};
 
 private:

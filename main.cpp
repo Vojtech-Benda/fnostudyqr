@@ -49,11 +49,11 @@ int main(int argc, char *argv[]) {
     OFCmdUnsignedInt opt_recievePort{0};                     // retrieve port to receive data
     const char *     opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aec
     const char *     opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aep
-    // const char *     opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aer
-    const char *    opt_outputDirectory{nullptr};
-    const char *    opt_filepath{nullptr};
-    const char *    opt_queryModality{nullptr};
-    E_addModalities opt_addModalities{E_addModalities::ADD_MODALITIES_MISSING};
+    const char *     opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aer
+    OFString         opt_outputDirectory{"./download"};
+    const char *     opt_filepath{nullptr};
+    const char *     opt_queryModality{nullptr};
+    E_addModalities  opt_addModalities{E_addModalities::ADD_MODALITIES_MISSING};
 
     cmd.setParamColumn(LONGCOL + SHORTCOL + 4);
     cmd.addParam("pacs-ip", "hostname of DICOM peer");
@@ -75,10 +75,9 @@ int main(int argc, char *argv[]) {
                   fmt::format("set my calling AE title (default: {}", USER_APPLICATION_TITLE).c_str());
     cmd.addOption("--ae-pacs", "-aep", 1, "[a]etitle: string",
                   fmt::format("set called AE title of peer (default: {})", PACS_APPLICATION_TITLE).c_str());
-    // TODO maybe add it in the future
-    // cmd.addOption("--ae-receiver", "-aer", 1,
-    //     "[a]etitle: string",
-    //     fmt::format("set move destination AE title (default: {})", APPLICATION_TITLE).c_str());
+    cmd.addOption("--ae-receiver", "-aer", 1,
+                  "[a]etitle: string",
+                  fmt::format("set move destination AE title (default: {})", USER_APPLICATION_TITLE).c_str());
 
     cmd.addSubGroup("port for incoming network associations:");
     cmd.addOption("--receive-port", "-port", 1, "[n]umber: integer", "port number for incoming associations");
@@ -114,13 +113,18 @@ int main(int argc, char *argv[]) {
 
         if (cmd.findOption("--ae-caller")) {
             app.checkValue(cmd.getValue(opt_aeCaller));
+            queryRetriever.m_callerAETitle = opt_aeCaller;
         }
-        queryRetriever.m_callerAETitle = opt_aeCaller;
 
         if (cmd.findOption("--ae-pacs")) {
             app.checkValue(cmd.getValue(opt_aePacs));
+            queryRetriever.m_calledAETitle = opt_aePacs;
         }
-        queryRetriever.m_calledAETitle = opt_aePacs;
+
+        if (cmd.findOption("--ae-receiver")) {
+            app.checkValue(cmd.getValue(opt_aeReceiver));
+            queryRetriever.m_receiverAETitle = opt_aeReceiver;
+        }
 
         if (cmd.findOption("--receive-port")) {
             app.checkValue(cmd.getValueAndCheckMinMax(opt_recievePort, 1, 65535));
@@ -149,9 +153,19 @@ int main(int argc, char *argv[]) {
 
         OFLOG_DEBUG(mainLogger, rcsid.c_str() << OFendl);
 
-        if (queryRetriever.m_retrievePort <= 0) {
+        if (queryRetriever.m_retrievePort <= 0 && queryRetriever.m_receiverAETitle.empty()) {
             OFLOG_ERROR(mainLogger, "Missing parameter --receiver-port (-port) number");
             return EXITCODE_COMMANDLINE_SYNTAX_ERROR;
+        }
+
+        if (!queryRetriever.m_receiverAETitle.empty() &&
+            queryRetriever.m_retrievePort > 0) {
+            fmt::print("Setting local receiver port (-port) with AE title of third party destination (-aer) not required\n");
+        }
+
+        if (!queryRetriever.m_receiverAETitle.empty() &&
+            !queryRetriever.m_outputDirectory.empty()) {
+            fmt::print("Setting local output directory (-od) with AE title of third party destination (-aer) not required\n");
         }
 
         if (!queryRetriever.m_outputDirectory.empty()) {

@@ -276,7 +276,8 @@ OFCondition QueryRetriever::performMoveRequest(const PatientRecord &patient_reco
 	             this->m_abstractSyntax.moveSyntax,
 	             sizeof(request.AffectedSOPClassUID));
 
-	if (this->m_moveDestination.empty())
+	if (this->m_receiverAETitle.empty())
+		// set the destination to be calling device
 		ASC_getAPTitles(this->m_assoc->params,
 		                request.MoveDestination,
 		                sizeof(request.MoveDestination),
@@ -285,7 +286,7 @@ OFCondition QueryRetriever::performMoveRequest(const PatientRecord &patient_reco
 		                nullptr,
 		                0);
 	else
-		std::strncpy(request.MoveDestination, this->m_moveDestination.c_str(), sizeof(request.MoveDestination));
+		std::strncpy(request.MoveDestination, this->m_receiverAETitle.c_str(), sizeof(request.MoveDestination));
 
 	request.Priority    = DIMSE_PRIORITY_MEDIUM;
 	request.DataSetType = DIMSE_DATASET_PRESENT;
@@ -306,12 +307,16 @@ OFCondition QueryRetriever::performMoveRequest(const PatientRecord &patient_reco
 
 		const std::string studyDirectory = fmt::format("{}/{}", this->m_outputDirectory, uid);
 
-		if (std::filesystem::exists(studyDirectory))
-			fmt::print("Study directory {} exits - {}\n",
-			           studyDirectory,
-			           fmt::format(fg(fmt::color::yellow), "OVERWRITING"));
+		if (m_receiverAETitle.empty()) {
+			if (std::filesystem::exists(studyDirectory))
+				fmt::print("Study directory {} exits - {}\n",
+						   studyDirectory,
+						   fmt::format(fg(fmt::color::yellow), "OVERWRITING"));
 
-		(void) std::filesystem::create_directories(studyDirectory);
+			if (std::filesystem::create_directories(studyDirectory)) {
+				OFLOG_INFO(qrLogger, fmt::format("Created study directory {}", studyDirectory));
+			}
+		}
 
 		cond = DIMSE_moveUser_(this->m_assoc,
 		                       presID,
