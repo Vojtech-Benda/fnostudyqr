@@ -47,9 +47,9 @@ int main(int argc, char *argv[]) {
     const char *     opt_pacsIP{nullptr};                    // hostname/ip address of PACS (DICOM peer)
     OFCmdUnsignedInt opt_pacsPort{0};                        // tcp/ip port of peer
     OFCmdUnsignedInt opt_recievePort{0};                     // retrieve port to receive data
-    const char *     opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aec
-    const char *     opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aep
-    const char *     opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aer
+    const char *     opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aet
+    const char *     opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aec
+    const char *     opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aem
     OFString         opt_outputDirectory{"./download"};
     const char *     opt_filepath{nullptr};
     const char *     opt_queryModality{nullptr};
@@ -71,11 +71,11 @@ int main(int argc, char *argv[]) {
     //cmd.addOption("--study",    "-S",   "use study root information model");
 
     cmd.addSubGroup("application entity titles:");
-    cmd.addOption("--ae-caller", "-aec", 1, "[a]etitle: string",
+    cmd.addOption("--ae-caller", "-aet", 1, "[a]etitle: string",
                   fmt::format("set my calling AE title (default: {}", USER_APPLICATION_TITLE).c_str());
-    cmd.addOption("--ae-pacs", "-aep", 1, "[a]etitle: string",
+    cmd.addOption("--ae-pacs", "-aec", 1, "[a]etitle: string",
                   fmt::format("set called AE title of peer (default: {})", PACS_APPLICATION_TITLE).c_str());
-    cmd.addOption("--ae-receiver", "-aer", 1,
+    cmd.addOption("--ae-receiver", "-aem", 1,
                   "[a]etitle: string",
                   fmt::format("set move destination AE title (default: {})", USER_APPLICATION_TITLE).c_str());
 
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
 
         if (cmd.findOption("--output-directory")) {
             app.checkValue(cmd.getValue(opt_outputDirectory));
-            queryRetriever.m_outputDirectory = opt_outputDirectory;
+            queryRetriever.m_outputDirectory = opt_outputDirectory.c_str();
         }
 
         if (cmd.findOption("--patient-list-file"))
@@ -160,12 +160,12 @@ int main(int argc, char *argv[]) {
 
         if (!queryRetriever.m_receiverAETitle.empty() &&
             queryRetriever.m_retrievePort > 0) {
-            fmt::print("Setting local receiver port (-port) with AE title of third party destination (-aer) not required\n");
+            fmt::print("Setting local receiver port (-port) with AE title of third party destination (-aem) not required\n");
         }
 
         if (!queryRetriever.m_receiverAETitle.empty() &&
             !queryRetriever.m_outputDirectory.empty()) {
-            fmt::print("Setting local output directory (-od) with AE title of third party destination (-aer) not required\n");
+            fmt::print("Setting local output directory (-od) with AE title of third party destination (-aem) not required\n");
         }
 
         if (!queryRetriever.m_outputDirectory.empty()) {

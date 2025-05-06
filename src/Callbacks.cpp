@@ -258,7 +258,7 @@ OFCondition storeSCP(T_ASC_Association *         assoc,
 	                     request->AffectedSOPInstanceUID);
 	OFStandard::sanitizeFilename(filename);
 	OFString ofname;
-	OFStandard::combineDirAndFilename(ofname, output_directory, filename, OFTrue);
+	OFStandard::combineDirAndFilename(ofname, OFString(output_directory.c_str()), filename, OFTrue);
 
 	StoreCallbackData storeCallbackData;
 	storeCallbackData.m_assoc    = assoc;
