@@ -44,16 +44,20 @@ int main(int argc, char *argv[]) {
     QueryRetriever       queryRetriever;
 
     // const char *        opt_callerIP{ nullptr }; // ip address of application user
-    const char *     opt_pacsIP{nullptr};                    // hostname/ip address of PACS (DICOM peer)
-    OFCmdUnsignedInt opt_pacsPort{0};                        // tcp/ip port of peer
-    OFCmdUnsignedInt opt_recievePort{0};                     // retrieve port to receive data
-    const char *     opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aet
-    const char *     opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aec
-    const char *     opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aem
-    OFString         opt_outputDirectory{"./download"};
-    const char *     opt_filepath{nullptr};
-    const char *     opt_queryModality{nullptr};
-    E_addModalities  opt_addModalities{E_addModalities::ADD_MODALITIES_MISSING};
+    const char *       opt_pacsIP{nullptr};                    // hostname/ip address of PACS (DICOM peer)
+    OFCmdUnsignedInt   opt_pacsPort{0};                        // tcp/ip port of peer
+    OFCmdUnsignedInt   opt_recievePort{0};                     // retrieve port to receive data
+    const char *       opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aet
+    const char *       opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aec
+    const char *       opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aem
+    OFString           opt_outputDirectory{"./download"};
+    const char *       opt_filepath{nullptr}; // filepath to queried patient list
+    const char *       opt_queryModality{nullptr};
+    E_addModalities    opt_addModalities{E_addModalities::ADD_MODALITIES_MISSING};
+    OFVector<OFString> opt_overrideTags{};
+    OFBool             opt_retrieveTags{OFFalse};
+    OFBool             opt_retrieveFiles{OFFalse};
+    OFString           opt_dumpFilepath{"dumped_tags.csv"};
 
     cmd.setParamColumn(LONGCOL + SHORTCOL + 4);
     cmd.addParam("pacs-ip", "hostname of DICOM peer");
@@ -71,11 +75,19 @@ int main(int argc, char *argv[]) {
     //cmd.addOption("--study",    "-S",   "use study root information model");
 
     cmd.addSubGroup("application entity titles:");
-    cmd.addOption("--ae-caller", "-aet", 1, "[a]etitle: string",
+    cmd.addOption("--ae-caller",
+                  "-aet",
+                  1,
+                  "[a]etitle: string",
                   fmt::format("set my calling AE title (default: {}", USER_APPLICATION_TITLE).c_str());
-    cmd.addOption("--ae-pacs", "-aec", 1, "[a]etitle: string",
+    cmd.addOption("--ae-pacs",
+                  "-aec",
+                  1,
+                  "[a]etitle: string",
                   fmt::format("set called AE title of peer (default: {})", PACS_APPLICATION_TITLE).c_str());
-    cmd.addOption("--ae-receiver", "-aem", 1,
+    cmd.addOption("--ae-receiver",
+                  "-aem",
+                  1,
                   "[a]etitle: string",
                   fmt::format("set move destination AE title (default: {})", USER_APPLICATION_TITLE).c_str());
 
@@ -83,16 +95,36 @@ int main(int argc, char *argv[]) {
     cmd.addOption("--receive-port", "-port", 1, "[n]umber: integer", "port number for incoming associations");
 
     cmd.addGroup("input options:");
-    cmd.addOption("--patient-list-file", "-plist", 1, "filepath: string path",
+    cmd.addOption("--patient-list-file",
+                  "-plist",
+                  1,
+                  "filepath: string path",
                   "text file with patient/study information to query/retrieve\nrequired order: PatientName,PatientID,StudyDate,(Modality)");
-    cmd.addOption("--add-modality-missing", "-am", 1, "modality: string",
+    cmd.addOption("--add-modality-missing",
+                  "-am",
+                  1,
+                  "modality: string",
                   "add modality to missing modalities in read patient records (default)");
-    cmd.addOption("--add-modality-all", "+am", 1, "modality: string",
+    cmd.addOption("--add-modality-all",
+                  "+am",
+                  1,
+                  "modality: string",
                   "add modality to all read patient records, overwrites read modalities");
+    cmd.addOption("--tag", "-t", 1, "[t]ag: gggg,eeee=\"str\" or name=\"str\"", "additional query tags");
 
     cmd.addGroup("output options:");
-    cmd.addOption("--output-directory", "-od", 1, R"([d]irectory: string (default: "./download")",
+    cmd.addOption("--output-directory",
+                  "-od",
+                  1,
+                  "[d]irectory: string (default: \"./download\"",
                   "write received data to directory d");
+    cmd.addOption("--dump-filepath",
+                  "-df",
+                  1,
+                  "[f]ilepath: string (default: \"dumped_tags.csv\")",
+                  "filepath of CSV file with retrieved tags");
+    cmd.addOption("--retrieve-tags", "-rt", "retrieve queried tags and store them to CSV");
+    cmd.addOption("--retrieve-files", "-rf", "perform C-MOVE request for queried tags");
 
     prepareCmdLineArgs(argc, argv, FNO_CONSOLE_APPLICATION);
     if (app.parseCommandLine(cmd, argc, argv)) {
@@ -149,6 +181,27 @@ int main(int argc, char *argv[]) {
             opt_addModalities = E_addModalities::ADD_MODALITIES_ALL;
             app.checkValue(cmd.getValue(opt_queryModality));
         }
+
+        if (cmd.findOption("--tag", 0, OFCommandLine::FOM_FirstFromLeft)) {
+            const char *ovTag{nullptr};
+            do {
+                app.checkValue(cmd.getValue(ovTag));
+                opt_overrideTags.push_back(ovTag);
+            } while (cmd.findOption("--tag", 0, OFCommandLine::FOM_NextFromLeft));
+        }
+
+        if (cmd.findOption("--dump-filepath")) {
+            app.checkValue(cmd.getValue(opt_dumpFilepath));
+        }
+
+        if (cmd.findOption("--retrieve-tags")) {
+            opt_retrieveTags = OFTrue;
+        }
+
+        if (cmd.findOption("--retrieve-files")) {
+            opt_retrieveFiles = OFTrue;
+        }
+
         cmd.endOptionBlock();
 
         OFLOG_DEBUG(mainLogger, rcsid.c_str() << OFendl);
@@ -260,6 +313,15 @@ int main(int argc, char *argv[]) {
     missingStudiesFile.print("{:%Y-%m-%d %H:%M:%S}\n", tm);
     missingStudiesFile.print("PatientID, StudyDate\n");
 
+    if (opt_retrieveTags) {
+        OFLOG_INFO(mainLogger, "QueryRetriever set up for dumping tags");
+    }
+
+    if (opt_retrieveFiles) {
+        OFLOG_INFO(mainLogger, "QueryRetriever set up for storing files");
+    }
+
+
     fmt::print("C-FIND -------------------------\n");
     cond = EC_Normal;
 
@@ -279,15 +341,17 @@ int main(int argc, char *argv[]) {
     missingStudiesFile.close();
     fmt::print("Records of missing studies written to {}\n", missingStudiesFilename);
 
-    fmt::print("C-MOVE -------------------------\n");
-    cond = EC_Normal;
-    for (const auto &record: recordList) {
-        if (record.m_uid_list.empty()) {
-            const std::string msg = fmt::format("PatientID: {}, StudyDate: {}", record.m_id, record.m_study_date);
-            fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::red), "FAIL, MISSING StudyInstanceUID"));
-            continue;
+    if (opt_retrieveFiles) {
+        fmt::print("C-MOVE -------------------------\n");
+        cond = EC_Normal;
+        for (const auto &record: recordList) {
+            if (record.m_uid_list.empty()) {
+                const std::string msg = fmt::format("PatientID: {}, StudyDate: {}", record.m_id, record.m_study_date);
+                fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::red), "FAIL, MISSING StudyInstanceUID"));
+                continue;
+            }
+            cond = queryRetriever.performMoveRequest(record);
         }
-        cond = queryRetriever.performMoveRequest(record);
     }
 
     int exitCode = cond.good() ? 0 : 2;
