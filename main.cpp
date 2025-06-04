@@ -24,7 +24,7 @@ enum E_addModalities {
 int main(int argc, char *argv[]) {
     // const char *FNO_CONSOLE_APPLICATION{ "fnostudyqr" };
     constexpr auto    FNO_CONSOLE_APPLICATION{"fnostudyqr"};
-    constexpr auto *  APP_VERSION{"0.6.1"};
+    constexpr auto *  APP_VERSION{"0.6.2"};
     constexpr auto    APP_RELEASE_DATE{"2025-01-05"};
     const std::string rcsid = fmt::format("${}: ver. {} rel. {}\n$dcmtk: ver. {} rel. {}",
                                           FNO_CONSOLE_APPLICATION,
@@ -165,7 +165,6 @@ int main(int argc, char *argv[]) {
 
         if (cmd.findOption("--output-directory")) {
             app.checkValue(cmd.getValue(opt_outputDirectory));
-            queryRetriever.m_outputDirectory = opt_outputDirectory.c_str();
         }
 
         if (cmd.findOption("--patient-list-file"))
@@ -217,23 +216,22 @@ int main(int argc, char *argv[]) {
         }
 
         if (!queryRetriever.m_receiverAETitle.empty() &&
-            !queryRetriever.m_outputDirectory.empty()) {
+            !opt_outputDirectory.empty()) {
             fmt::print("Setting local output directory (-od) with AE title of third party destination (-aem) not required\n");
         }
 
-        if (!queryRetriever.m_outputDirectory.empty()) {
-            if (std::filesystem::exists(queryRetriever.m_outputDirectory))
-                OFLOG_DEBUG(mainLogger, "Output directory exists: " << queryRetriever.m_outputDirectory.c_str());
-            else {
-                (void) std::filesystem::create_directories(queryRetriever.m_outputDirectory);
-                OFLOG_DEBUG(mainLogger, "Created output directory: " << queryRetriever.m_outputDirectory.c_str());
-            }
-
-            if (!OFStandard::isWriteable(queryRetriever.m_outputDirectory.c_str())) {
-                OFLOG_FATAL(mainLogger, "Specified output directory is not writable");
-                return EXITCODE_CANNOT_WRITE_OUTPUT_FILE;
-            }
+        if (OFStandard::dirExists(opt_outputDirectory))
+            OFLOG_DEBUG(mainLogger, "Output directory exists: " << opt_outputDirectory);
+        else {
+            (void) OFStandard::createDirectory(opt_outputDirectory, "");
+            OFLOG_DEBUG(mainLogger, "Created output directory: " << opt_outputDirectory);
         }
+
+        if (!OFStandard::isWriteable(opt_outputDirectory)) {
+            OFLOG_FATAL(mainLogger, "Specified output directory is not writable");
+            return EXITCODE_CANNOT_WRITE_OUTPUT_FILE;
+        }
+        queryRetriever.m_outputDirectory = opt_outputDirectory.c_str();
 
         if (opt_filepath == nullptr) {
             OFLOG_ERROR(mainLogger, "No text file specified");
