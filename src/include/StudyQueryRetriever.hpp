@@ -16,10 +16,14 @@
 #include "dcmtk/dcmdata/dcfilefo.h"
 #include "dcmtk/dcmdata/dcdeftag.h"
 #include "dcmtk/dcmdata/dcmetinf.h"
+#include "dcmtk/dcmdata/dcpath.h"
+#include "dcmtk/dcmdata/dcdict.h"
+#include "dcmtk/dcmdata/dcdicent.h"
 #include "dcmtk/dcmnet/dicom.h"
 #include "dcmtk/dcmnet/dimse.h"
 #include "dcmtk/dcmnet/diutil.h"
 #include "dcmtk/oflog/oflog.h"
+#include "dcmtk/ofstd/ofconapp.h"
 
 #include "fmt/format.h"
 
@@ -55,6 +59,7 @@ struct QuerySyntax {
 	const char *moveSyntax;
 };
 
+using TagValuePair = std::pair<DcmTagKey, OFString>;
 
 class QueryRetriever {
 public:
@@ -80,15 +85,20 @@ public:
 
 	OFCondition performMoveRequest(const PatientRecord &patient_record);
 
-	unsigned short m_port{0};    // tcp/ip port of peer
-	unsigned short m_retrievePort{0};
-	std::string    m_callerIP{}; // ip address of application user
-	std::string    m_calledIP{}; // hostname of PACS (DICOM peer)
-	std::string    m_callerAETitle{};   // aec
-	std::string    m_calledAETitle{};   // aep
-	std::string    m_receiverAETitle{}; // aer
-	std::string    m_outputDirectory{};
-	std::string    m_studyDirectory{};
+	OFCondition dumpTags(const PatientRecord &           patient_record,
+	                     const OFString & dump_filepath,
+	                     std::vector<TagValuePair> &query_tags,
+	                     QueryCallback *                 callback) const;
+
+	unsigned short        m_port{0}; // tcp/ip port of peer
+	unsigned short        m_retrievePort{0};
+	std::string           m_callerIP{};        // ip address of application user
+	std::string           m_calledIP{};        // hostname of PACS (DICOM peer)
+	std::string           m_callerAETitle{};   // aec
+	std::string           m_calledAETitle{};   // aep
+	std::string           m_receiverAETitle{}; // aer
+	std::string           m_outputDirectory{};
+	std::string           m_studyDirectory{};
 
 private:
 	T_ASC_Network *    m_net{nullptr};
@@ -112,11 +122,20 @@ public:
 
 	virtual ~QueryCallback() = default;
 
-	virtual void callback(T_DIMSE_C_FindRQ *        request,
-	                      int                       responseCount,
-	                      T_DIMSE_C_FindRSP *       response,
-	                      DcmDataset *              responseIdentifiers,
-	                      std::vector<std::string> &uid_list) = 0;
+	// store received uids to std::set
+	virtual void callback(T_DIMSE_C_FindRQ *     request,
+	                      int                    responseCount,
+	                      T_DIMSE_C_FindRSP *    response,
+	                      DcmDataset *           responseIdentifiers,
+	                      std::set<std::string> &uid_list) = 0;
+
+	// write received tags to file
+	virtual void callback(T_DIMSE_C_FindRQ *         request,
+	                      int                        response_count,
+	                      T_DIMSE_C_FindRSP *        response,
+	                      DcmDataset *               response_identifiers,
+	                      const OFString &           dump_filepath,
+	                      std::vector<TagValuePair> &query_tags) = 0;
 
 	void setAssociation(T_ASC_Association *assoc);
 
@@ -133,30 +152,56 @@ public:
 
 	~QueryDefaultCallback() override = default;
 
-	void callback(T_DIMSE_C_FindRQ *        request,
-	              int                       response_count,
-	              T_DIMSE_C_FindRSP *       response,
-	              DcmDataset *              response_identifiers,
-	              std::vector<std::string> &uid_list) override;
+	// store received study uids to std::set
+	void callback(T_DIMSE_C_FindRQ *     request,
+	              int                    response_count,
+	              T_DIMSE_C_FindRSP *    response,
+	              DcmDataset *           response_identifiers,
+	              std::set<std::string> &uid_list) override;
+
+	// write received tags to file
+	void callback(T_DIMSE_C_FindRQ *         request,
+	              int                        response_count,
+	              T_DIMSE_C_FindRSP *        response,
+	              DcmDataset *               response_identifiers,
+	              const OFString &           dump_filepath,
+	              std::vector<TagValuePair> &query_tags) override;
 
 private:
 	const int m_cancelAfterNResponses{0};
 };
 
+static void progressCallback(void *                 callback_data,
+                             T_DIMSE_C_FindRQ *     request,
+                             int                    response_count,
+                             T_DIMSE_C_FindRSP *    response,
+                             DcmDataset *           response_identifiers,
+                             std::set<std::string> &uid_list);
 
-static void progressCallback(void *                    callback_data,
-                             T_DIMSE_C_FindRQ *        request,
-                             int                       response_count,
-                             T_DIMSE_C_FindRSP *       response,
-                             DcmDataset *              response_identifiers,
-                             std::vector<std::string> &uid_list);
+// store received tags to file
+static void progressCallback(void *                     callback_data,
+                             T_DIMSE_C_FindRQ *         request,
+                             int                        response_count,
+                             T_DIMSE_C_FindRSP *        response,
+                             DcmDataset *               response_identifiers,
+                             const OFString &           dump_filepath,
+                             std::vector<TagValuePair> &query_tags);
 
-typedef void (*DIMSE_QueryUserCallback)(void *                    callbackData,
-                                        T_DIMSE_C_FindRQ *        request,
-                                        int                       responseCount,
-                                        T_DIMSE_C_FindRSP *       response,
-                                        DcmDataset *              responseIdentifiers,
-                                        std::vector<std::string> &uid_list);
+typedef void (*DIMSE_QueryUserCallback)(void *                 callbackData,
+                                        T_DIMSE_C_FindRQ *     request,
+                                        int                    responseCount,
+                                        T_DIMSE_C_FindRSP *    response,
+                                        DcmDataset *           responseIdentifiers,
+                                        std::set<std::string> &uid_list);
+
+// store received tags to file
+typedef void (*DIMSE_DumpUserCallback)(void *                     callbackData,
+                                       T_DIMSE_C_FindRQ *         request,
+                                       int                        responseCount,
+                                       T_DIMSE_C_FindRSP *        response,
+                                       DcmDataset *               responseIdentifiers,
+                                       const OFString &           dump_filepath,
+                                       std::vector<TagValuePair> &query_tags);
 
 OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
                             T_ASC_PresentationContextID pres_id,
@@ -169,7 +214,22 @@ OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
                             int                         timeout,
                             T_DIMSE_C_FindRSP *         response,
                             DcmDataset **               status_detail,
-                            std::vector<std::string> &  uid_list);
+                            std::set<std::string> &     uid_list);
+
+// store received tags to file
+OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
+                            T_ASC_PresentationContextID pres_id,
+                            T_DIMSE_C_FindRQ *          request,
+                            DcmDataset *                request_identifiers,
+                            int                         response_count,
+                            DIMSE_DumpUserCallback      callback,
+                            void *                      callback_data,
+                            T_DIMSE_BlockingMode        block_mode,
+                            int                         timeout,
+                            T_DIMSE_C_FindRSP *         response,
+                            DcmDataset **               status_detail,
+                            const OFString &            dump_filepath,
+                            std::vector<TagValuePair> & query_tags);
 
 OFCondition DIMSE_moveUser_(T_ASC_Association *          assoc,
                             T_ASC_PresentationContextID  pres_id,
@@ -190,5 +250,7 @@ OFCondition DIMSE_moveUser_(T_ASC_Association *          assoc,
                             const std::string &          output_directory);
 
 
+DcmTag prepareQueryTag(OFConsoleApplication &app, const char *tag_string);
 
+std::string formatValues(const std::vector<TagValuePair> &query_tags);
 #endif //STUDYQUERYRETRIEVER_HPP

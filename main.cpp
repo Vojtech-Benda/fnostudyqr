@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
+#include <map>
 
 #include "fmt/format.h"
 #include "fmt/ranges.h"
@@ -20,11 +21,9 @@ enum E_addModalities {
     ADD_MODALITIES_MISSING
 };
 
-
 int main(int argc, char *argv[]) {
-    // const char *FNO_CONSOLE_APPLICATION{ "fnostudyqr" };
     constexpr auto    FNO_CONSOLE_APPLICATION{"fnostudyqr"};
-    constexpr auto *  APP_VERSION{"0.6.2"};
+    constexpr auto *  APP_VERSION{"0.7.0"};
     constexpr auto    APP_RELEASE_DATE{"2025-01-05"};
     const std::string rcsid = fmt::format("${}: ver. {} rel. {}\n$dcmtk: ver. {} rel. {}",
                                           FNO_CONSOLE_APPLICATION,
@@ -44,20 +43,20 @@ int main(int argc, char *argv[]) {
     QueryRetriever       queryRetriever;
 
     // const char *        opt_callerIP{ nullptr }; // ip address of application user
-    const char *       opt_pacsIP{nullptr};                    // hostname/ip address of PACS (DICOM peer)
-    OFCmdUnsignedInt   opt_pacsPort{0};                        // tcp/ip port of peer
-    OFCmdUnsignedInt   opt_recievePort{0};                     // retrieve port to receive data
-    const char *       opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aet
-    const char *       opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aec
-    const char *       opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aem
-    OFString           opt_outputDirectory{"./download"};
-    const char *       opt_filepath{nullptr}; // filepath to queried patient list
-    const char *       opt_queryModality{nullptr};
-    E_addModalities    opt_addModalities{E_addModalities::ADD_MODALITIES_MISSING};
-    OFVector<OFString> opt_overrideTags{};
-    OFBool             opt_retrieveTags{OFFalse};
-    OFBool             opt_retrieveFiles{OFFalse};
-    OFString           opt_dumpFilepath{"dumped_tags.csv"};
+    const char *          opt_pacsIP{nullptr};                    // hostname/ip address of PACS (DICOM peer)
+    OFCmdUnsignedInt      opt_pacsPort{0};                        // tcp/ip port of peer
+    OFCmdUnsignedInt      opt_recievePort{0};                     // retrieve port to receive data
+    const char *          opt_aeCaller{USER_APPLICATION_TITLE};   // ae-caller/aet
+    const char *          opt_aePacs{PACS_APPLICATION_TITLE};     // ae-pacs/aec
+    const char *          opt_aeReceiver{USER_APPLICATION_TITLE}; // ae-receiver/aem
+    OFString              opt_outputDirectory{"./download"};
+    const char *          opt_filepath{nullptr}; // filepath to queried patient list
+    const char *          opt_queryModality{nullptr};
+    E_addModalities       opt_addModalities{E_addModalities::ADD_MODALITIES_MISSING};
+    std::vector<OFString> opt_overrideTags{};
+    OFBool                opt_retrieveTags{OFFalse};
+    OFBool                opt_retrieveFiles{OFFalse};
+    OFString              opt_dumpFilepath{"dumped_tags.csv"};
 
     cmd.setParamColumn(LONGCOL + SHORTCOL + 4);
     cmd.addParam("pacs-ip", "hostname of DICOM peer");
@@ -182,9 +181,15 @@ int main(int argc, char *argv[]) {
         }
 
         if (cmd.findOption("--tag", 0, OFCommandLine::FOM_FirstFromLeft)) {
-            const char *ovTag{nullptr};
+            OFString ovTag{};
             do {
                 app.checkValue(cmd.getValue(ovTag));
+                if (ovTag == "PatientID" ||
+                    ovTag == "StudyInstanceUID" ||
+                    ovTag == "SeriesDescription") {
+                    OFLOG_WARN(mainLogger, "Ignoring -t " << ovTag << "; already requested by default");
+                    continue;
+                }
                 opt_overrideTags.push_back(ovTag);
             } while (cmd.findOption("--tag", 0, OFCommandLine::FOM_NextFromLeft));
         }
@@ -271,7 +276,7 @@ int main(int argc, char *argv[]) {
 
     std::ranges::replace_if(queryModality, [](const char c) { return c == '/'; }, '\\');
 
-    for (auto& record : recordList) {
+    for (auto &record: recordList) {
         // add modality specified on cmd line
         // reason: some records may have modality specified, some may not
 
@@ -285,7 +290,7 @@ int main(int argc, char *argv[]) {
     }
 
     OFCondition cond = queryRetriever.initializeNetwork();
-    OFString temp_string;
+    OFString    temp_string;
 
     if (cond.bad()) {
         OFLOG_ERROR(mainLogger, "Cannot create network: " << DimseCondition::dump(temp_string, cond));
@@ -302,8 +307,8 @@ int main(int argc, char *argv[]) {
     }
 
     const auto    time = std::chrono::system_clock::now();
-    const auto    tt = std::chrono::system_clock::to_time_t(time);
-    const std::tm tm = *std::localtime(&tt);
+    const auto    tt   = std::chrono::system_clock::to_time_t(time);
+    const std::tm tm   = *std::localtime(&tt);
 
     const std::string missingStudiesFilename = fmt::format("missing-studies-{:%Y-%m-%d-%H-%M-%S}.txt", tm);
 
@@ -320,7 +325,7 @@ int main(int argc, char *argv[]) {
     }
 
 
-    fmt::print("C-FIND -------------------------\n");
+    fmt::print("C-FIND ---------- FIND STUDIES\n");
     cond = EC_Normal;
 
     for (auto &record: recordList) {
@@ -331,7 +336,8 @@ int main(int argc, char *argv[]) {
             fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::red), "FAIL, STUDY NOT FOUND"));
             missingStudiesFile.print("{}, {} - NOT FOUND\n", record.m_id, record.m_study_date);
         } else {
-            fmt::print("{} - {}\n", msg,
+            fmt::print("{} - {}\n",
+                       msg,
                        fmt::format(fg(fmt::color::green), "SUCCESS, {} study/ies", record.m_uid_list.size()));
             fmt::print("StudyInstanceUIDs: \n{}\n", record.m_uid_list);
         }
@@ -339,8 +345,53 @@ int main(int argc, char *argv[]) {
     missingStudiesFile.close();
     fmt::print("Records of missing studies written to {}\n", missingStudiesFilename);
 
+    if (opt_retrieveTags) {
+
+        fmt::print("C-FIND ---------- DUMP TAGS\n");
+
+        OFString header{"PatientID,StudyInstanceUID,SeriesDescription,"};
+        for (auto it = opt_overrideTags.begin(); it != opt_overrideTags.end(); ++it) {
+            header += *it;
+            if (it != opt_overrideTags.end()) {
+                header += ",";
+            }
+        }
+
+        fmt::ostream fileStream = fmt::output_file(opt_dumpFilepath.c_str(),
+                                                   fmt::file::CREATE | fmt::file::WRONLY | fmt::file::APPEND);
+        fileStream.print("{}\n", header.c_str());
+        fileStream.close();
+
+        cond = EC_Normal;
+        for (const auto &record: recordList) {
+            if (record.m_uid_list.empty()) {
+                OFLOG_DEBUG(mainLogger,
+                            fmt::format("not querying tags for \"{}\", no study instance uids", record.m_id));
+                continue;
+            }
+
+            std::vector<TagValuePair> queryTags;
+            for (const auto &ov_tag : opt_overrideTags) {
+                DcmTag tag = prepareQueryTag(app, ov_tag.c_str());
+                queryTags.push_back(TagValuePair{tag, ""});
+            }
+
+            cond = queryRetriever.dumpTags(record, opt_dumpFilepath, queryTags, nullptr);
+        }
+    }
+
+    // TODO: Perhaps add in the future? Replace with current opt_overrideTags querying?
+    // DcmPathProcessor proc;
+    // for (const auto &tag : m_overrideTags) {
+    //     cond = proc.applyPathWithValue(requestedDataset, tag);
+    //     if (cond.bad()) {
+    //         DCMNET_ERROR("bad override tag: " << tag);
+    //         return cond;
+    //     }
+    // }
+
     if (opt_retrieveFiles) {
-        fmt::print("C-MOVE -------------------------\n");
+        fmt::print("C-MOVE ---------- MOVE STUDIES\n");
         cond = EC_Normal;
         for (const auto &record: recordList) {
             if (record.m_uid_list.empty()) {
@@ -353,7 +404,7 @@ int main(int argc, char *argv[]) {
     }
 
     int exitCode = cond.good() ? 0 : 2;
-    cond = queryRetriever.dropNetwork();
+    cond         = queryRetriever.dropNetwork();
 
     if (cond.bad()) {
         OFLOG_FATAL(mainLogger, "Failed to drop network: " << DimseCondition::dump(temp_string, cond));

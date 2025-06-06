@@ -8,13 +8,14 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <set>
 
 struct PatientRecord {
 	std::string              m_id{};
 	std::string              m_name{};
 	std::string              m_study_date{};
 	std::string              m_modality{};
-	std::vector<std::string> m_uid_list{};
+	std::set<std::string> m_uid_list{};
 
 	PatientRecord() = default;
 

@@ -4,6 +4,11 @@
 #include <filesystem>
 
 #include "StudyQueryRetriever.hpp"
+
+#include <utility>
+
+#include <fmt/os.h>
+
 #include "fmt/color.h"
 
 
@@ -186,14 +191,17 @@ OFCondition QueryRetriever::addPresentationContext(const E_TransferSyntax       
 	return ASC_addPresentationContext(this->m_params, presID, abstractSyntax, transferSyntaxes, numTransferSyntaxes);
 }
 
-OFCondition QueryRetriever::performFindRequest(PatientRecord &patient_record, const std::string &modalities,
-                                               QueryCallback *callback) const {
+OFCondition QueryRetriever::performFindRequest(PatientRecord &    patient_record,
+                                               const std::string &modalities,
+                                               QueryCallback *    callback) const {
 	T_DIMSE_C_FindRQ  request{};
 	T_DIMSE_C_FindRSP response{};
 	DcmFileFormat     fileformat;
 	OFString          temp_string;
+	OFCondition       cond = EC_Normal;
 
 	DcmDataset *requestedDataset = fileformat.getDataset();
+
 	requestedDataset->putAndInsertString(DCM_QueryRetrieveLevel, "STUDY");
 	requestedDataset->putAndInsertString(DCM_PatientID, patient_record.m_id.c_str());
 	requestedDataset->putAndInsertString(DCM_StudyDate, patient_record.m_study_date.c_str());
@@ -210,10 +218,14 @@ OFCondition QueryRetriever::performFindRequest(PatientRecord &patient_record, co
 		return DIMSE_NOVALIDPRESENTATIONCONTEXTID;
 	}
 
-	std::strncpy(request.AffectedSOPClassUID,
-	             this->m_abstractSyntax.findSyntax,
-	             sizeof(request.AffectedSOPClassUID) - 1);
-	request.AffectedSOPClassUID[sizeof(request.AffectedSOPClassUID) - 1] = '\0';
+	OFStandard::strlcpy(request.AffectedSOPClassUID,
+		m_abstractSyntax.findSyntax,
+		sizeof(request.AffectedSOPClassUID));
+
+	// std::strncpy(request.AffectedSOPClassUID,
+	//              this->m_abstractSyntax.findSyntax,
+	//              sizeof(request.AffectedSOPClassUID) - 1);
+	// request.AffectedSOPClassUID[sizeof(request.AffectedSOPClassUID) - 1] = '\0';
 
 	request.DataSetType = DIMSE_DATASET_PRESENT;
 	request.Priority    = DIMSE_PRIORITY_MEDIUM;
@@ -226,7 +238,6 @@ OFCondition QueryRetriever::performFindRequest(PatientRecord &patient_record, co
 	callback->setAssociation(this->m_assoc);
 	callback->setPresentationContextID(presID);
 
-	OFCondition cond = EC_Normal;
 	while (cond.good() && repeatCount--) {
 		DcmDataset *statusDetail = nullptr;
 		request.MessageID        = this->m_assoc->nextMsgID++;
@@ -391,11 +402,11 @@ void QueryCallback::setPresentationContextID(const T_ASC_PresentationContextID p
 QueryDefaultCallback::QueryDefaultCallback(int cancelAfterNResponses) : m_cancelAfterNResponses(cancelAfterNResponses) {
 }
 
-void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *        request,
-                                    int                       response_count,
-                                    T_DIMSE_C_FindRSP *       response,
-                                    DcmDataset *              response_identifiers,
-                                    std::vector<std::string> &uid_list) {
+void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *     request,
+                                    int                    response_count,
+                                    T_DIMSE_C_FindRSP *    response,
+                                    DcmDataset *           response_identifiers,
+                                    std::set<std::string> &uid_list) {
 	if (DCM_dcmnetLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL)) {
 		OFString temp_string;
 		DCMNET_INFO("Received Find Response " << response_count);
@@ -414,8 +425,9 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *        request,
 
 	OFString studyuid;
 	if (response_identifiers->findAndGetOFString(DCM_StudyInstanceUID, studyuid).good()) {
-		if (!studyuid.empty())
-			uid_list.emplace_back(studyuid.c_str());
+		if (!studyuid.empty()) {
+			uid_list.insert(studyuid.c_str());
+		}
 	}
 
 	if (this->m_cancelAfterNResponses == response_count) {
@@ -423,21 +435,92 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *        request,
 			            this->m_presID) << ")");
 		OFCondition cond = DIMSE_sendCancelRequest(this->m_assoc, this->m_presID, request->MessageID);
 		if (cond.bad()) {
-			OFString temp_string;
+			OFString temp_string{};
 			DCMNET_ERROR("Cancel Request Failed: " << DimseCondition::dump(temp_string, cond));
 		}
 	}
 }
 
-static void progressCallback(void *                    callback_data,
-                             T_DIMSE_C_FindRQ *        request,
-                             int                       response_count,
-                             T_DIMSE_C_FindRSP *       response,
-                             DcmDataset *              response_identifiers,
-                             std::vector<std::string> &uid_list) {
+void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
+                                    int                        response_count,
+                                    T_DIMSE_C_FindRSP *        response,
+                                    DcmDataset *               response_identifiers,
+                                    const OFString &           dump_filepath,
+                                    std::vector<TagValuePair> &query_tags) {
+	if (DCM_dcmnetLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL)) {
+		OFString temp_string;
+		DCMNET_INFO("Received Find Response " << response_count);
+		DCMNET_DEBUG(DIMSE_dumpMessage(temp_string, *response, DIMSE_INCOMING));
+		if (qrLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL)) {
+			DCMNET_DEBUG("Response Identifiers:" << OFendl << DcmObject::PrintHelper(*response_identifiers));
+		}
+	} else if (qrLogger.isEnabledFor(OFLogger::INFO_LOG_LEVEL)) {
+		OFLOG_INFO(qrLogger, "--------------------------");
+		OFLOG_INFO(qrLogger,
+		           "Find Response: " << response_count << " (" << DU_cfindStatusString(response->DimseStatus) << ")");
+		OFLOG_INFO(qrLogger, DcmObject::PrintHelper(*response_identifiers));
+	} else {
+		DCMNET_INFO("Received Find Respinse " << response_count << " (" << DU_cfindStatusString(response->DimseStatus)
+		            << ")");
+	}
+
+	fmt::ostream fileStream = fmt::output_file(dump_filepath.c_str(), fmt::file::WRONLY | fmt::file::APPEND);
+
+	OFString id, studyuid, seriesdesc;
+	response_identifiers->findAndGetOFString(DCM_PatientID, id);
+	response_identifiers->findAndGetOFString(DCM_StudyInstanceUID, studyuid);
+	response_identifiers->findAndGetOFString(DCM_SeriesDescription, seriesdesc);
+
+	std::string values = fmt::format("{},{},{},", id.c_str(), studyuid.c_str(), seriesdesc.c_str());
+
+	// it == {DcmTag, OFstring}
+	for (auto it = query_tags.begin(); it != query_tags.end(); ++it) {
+		response_identifiers->findAndGetOFString(it->first, it->second);
+		if (it->second.empty()) {
+			it->second = "EMPTY";
+		}
+
+		values += it->second.c_str();
+		if (it != query_tags.end()) {
+			values += ",";
+		}
+	}
+
+	fileStream.print("{}\n", values);
+	fileStream.close();
+
+	if (this->m_cancelAfterNResponses == response_count) {
+		DCMNET_INFO("Sending Cancel Request (MsgID " << request->MessageID << ", PresID " << OFstatic_cast(unsigned int,
+			            this->m_presID) << ")");
+		OFCondition cond = DIMSE_sendCancelRequest(this->m_assoc, this->m_presID, request->MessageID);
+		if (cond.bad()) {
+			OFString temp_string{};
+			DCMNET_ERROR("Cancel Request Failed: " << DimseCondition::dump(temp_string, cond));
+		}
+	}
+}
+
+static void progressCallback(void *                 callback_data,
+                             T_DIMSE_C_FindRQ *     request,
+                             int                    response_count,
+                             T_DIMSE_C_FindRSP *    response,
+                             DcmDataset *           response_identifiers,
+                             std::set<std::string> &uid_list) {
 	QueryCallback *callback = OFreinterpret_cast(QueryCallback*, callback_data);
 	if (callback)
 		callback->callback(request, response_count, response, response_identifiers, uid_list);
+}
+
+static void progressCallback(void *                     callback_data,
+                             T_DIMSE_C_FindRQ *         request,
+                             int                        response_count,
+                             T_DIMSE_C_FindRSP *        response,
+                             DcmDataset *               response_identifiers,
+                             const OFString &           dump_filepath,
+                             std::vector<TagValuePair> &query_tags) {
+	QueryCallback *callback = OFreinterpret_cast(QueryCallback*, callback_data);
+	if (callback)
+		callback->callback(request, response_count, response, response_identifiers, dump_filepath, query_tags);
 }
 
 OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
@@ -450,7 +533,7 @@ OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
                             int                         timeout,
                             T_DIMSE_C_FindRSP *         response,
                             DcmDataset **               status_detail,
-                            std::vector<std::string> &  uid_list) {
+                            std::set<std::string> &     uid_list) {
 	T_DIMSE_Message req{}, rsp{};
 	DIC_US          msgID;
 	DcmDataset *    rspIDs = nullptr;
@@ -546,6 +629,115 @@ OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
 
 	return cond;
 }
+
+OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
+                            T_ASC_PresentationContextID pres_id,
+                            T_DIMSE_C_FindRQ *          request,
+                            DcmDataset *                request_identifiers,
+                            int                         response_count,
+                            DIMSE_DumpUserCallback      callback, void *callback_data,
+                            T_DIMSE_BlockingMode        block_mode,
+                            int                         timeout,
+                            T_DIMSE_C_FindRSP *         response,
+                            DcmDataset **               status_detail,
+                            const OFString &            dump_filepath,
+                            std::vector<TagValuePair> & query_tags) {
+	T_DIMSE_Message req{}, rsp{};
+	DIC_US          msgID;
+	DcmDataset *    rspIDs = nullptr;
+	DIC_US          status = STATUS_FIND_Pending_MatchesAreContinuing;
+
+	if (request_identifiers == nullptr) return DIMSE_NULLKEY;
+
+	req.CommandField     = DIMSE_C_FIND_RQ;
+	request->DataSetType = DIMSE_DATASET_PRESENT;
+	req.msg.CFindRQ      = *request;
+
+	msgID = request->MessageID;
+
+	OFCondition cond = DIMSE_sendMessageUsingMemoryData(assoc,
+	                                                    pres_id,
+	                                                    &req,
+	                                                    nullptr,
+	                                                    request_identifiers,
+	                                                    nullptr,
+	                                                    nullptr);
+
+	if (cond.bad()) return cond;
+
+	while (cond == EC_Normal && DICOM_PENDING_STATUS(status)) {
+		if (rspIDs != nullptr) {
+			delete rspIDs;
+			rspIDs = nullptr;
+		}
+
+		// try to recieve C-FIND-RSP over the network
+		cond = DIMSE_receiveCommand(assoc, block_mode, timeout, &pres_id, &rsp, status_detail);
+		if (cond.bad())
+			return cond;
+
+		if (rsp.CommandField != DIMSE_C_FIND_RSP) {
+			std::string buf{
+				fmt::format("DIMSE: Unexpected Response Command Field: {:#04x}",
+				            static_cast<unsigned>(rsp.CommandField))
+			};
+			return makeDcmnetCondition(DIMSEC_UNEXPECTEDRESPONSE, OF_error, buf.c_str());
+		}
+
+		*response = rsp.msg.CFindRSP;
+		if (response->MessageIDBeingRespondedTo != msgID) {
+			std::string buf{
+				fmt::format("DIMSE: Unexpected Response MsgID: {} (expected: {})",
+				            response->MessageIDBeingRespondedTo,
+				            msgID)
+			};
+			return makeDcmnetCondition(DIMSEC_UNEXPECTEDRESPONSE, OF_error, buf.c_str());
+		}
+
+		status = response->DimseStatus;
+		response_count++;
+
+		switch (status) {
+			case STATUS_FIND_Pending_MatchesAreContinuing:
+			case STATUS_FIND_Pending_WarningUnsupportedOptionalKeys:
+				if (*status_detail != nullptr) {
+					DCMNET_WARN(DIMSE_warn_str(assoc) << "findUser: Pending with statusDetail, ignoring detail");
+					delete*status_detail;
+					*status_detail = nullptr;
+				}
+
+				if (response->DataSetType == DIMSE_DATASET_NULL) {
+					DCMNET_WARN(DIMSE_warn_str(assoc) << "findUser: Status Pending, but DataSetType==nullptr");
+					DCMNET_WARN(DIMSE_warn_str(assoc) << "Assuming response identifiers are present");
+				}
+
+				cond = DIMSE_receiveDataSetInMemory(assoc, block_mode, timeout, &pres_id, &rspIDs, nullptr, nullptr);
+				if (cond != EC_Normal)
+					return cond;
+
+				if (callback)
+					callback(callback_data, request, response_count, response, rspIDs, dump_filepath, query_tags);
+
+				break;
+			case STATUS_FIND_Success:
+				if (response->DataSetType != DIMSE_DATASET_NULL) {
+					DCMNET_WARN(DIMSE_warn_str(assoc) << "findUser: Status Success, but DataSetType!=nullptr");
+					DCMNET_WARN(DIMSE_warn_str(assoc) << "Assuming no response identifiers are present");
+				}
+				break;
+			default:
+				if (response->DataSetType != DIMSE_DATASET_NULL) {
+					DCMNET_WARN(DIMSE_warn_str(assoc) << "findUser: Status " << DU_cfindStatusString(status) <<
+					            ", but DataSetType != nullptr");
+					DCMNET_WARN(DIMSE_warn_str(assoc) << "Assuming no response identifiers are present");
+				}
+				break;
+		} // switch end
+	}     // while end
+
+	return cond;
+}
+
 
 OFCondition DIMSE_moveUser_(T_ASC_Association *          assoc,
                             T_ASC_PresentationContextID  pres_id,
@@ -701,4 +893,148 @@ OFCondition DIMSE_moveUser_(T_ASC_Association *          assoc,
 		}
 	}
 	return cond;
+}
+
+OFCondition QueryRetriever::dumpTags(const PatientRecord &      patient_record,
+                                     const OFString &           dump_filepath,
+                                     std::vector<TagValuePair> &query_tags,
+                                     QueryCallback *            callback) const {
+	OFCondition       cond = EC_Normal;
+	T_DIMSE_C_FindRQ  request{};
+	T_DIMSE_C_FindRSP response{};
+	OFString          temp_string{};
+
+	const T_ASC_PresentationContextID presID = ASC_findAcceptedPresentationContextID(
+		 m_assoc,
+		 m_abstractSyntax.findSyntax);
+
+	if (presID == 0) {
+		OFLOG_FATAL(qrLogger, "No presentation context");
+		return DIMSE_NOVALIDPRESENTATIONCONTEXTID;
+	}
+
+	OFStandard::strlcpy(request.AffectedSOPClassUID,
+	                    m_abstractSyntax.findSyntax,
+	                    sizeof(request.AffectedSOPClassUID));
+
+	request.DataSetType = DIMSE_DATASET_NULL;
+	request.Priority = DIMSE_PRIORITY_HIGH;
+
+	constexpr int responseCount{0};
+	int repeatCount{1};
+
+	QueryDefaultCallback defaultCallback(m_cancelAfterNResponses);
+	if (callback == nullptr) callback = &defaultCallback;
+	callback->setAssociation(m_assoc);
+	callback->setPresentationContextID(presID);
+
+	DcmFileFormat fileformat;
+	DcmDataset *requestedDataset = fileformat.getDataset();
+	requestedDataset->putAndInsertString(DCM_QueryRetrieveLevel, "SERIES");
+	requestedDataset->putAndInsertString(DCM_PatientID, patient_record.m_id.c_str());
+	requestedDataset->putAndInsertString(DCM_SeriesDescription, "");
+
+	// receive C-FIND response with requested tags (override_tags) for each study
+	for (const auto &uid : patient_record.m_uid_list) {
+		requestedDataset->putAndInsertString(DCM_StudyInstanceUID, uid.c_str());
+
+		for (const auto &pair : query_tags) {
+			requestedDataset->putAndInsertString(pair.first, pair.second.c_str());
+		}
+
+		while (cond.good() && repeatCount--) {
+			DcmDataset *statusDetail = nullptr;
+			request.MessageID        = m_assoc->nextMsgID++;
+
+			OFLOG_INFO(qrLogger, fmt::format("Sending FIND Request (MsgID {})\n", request.MessageID));
+			cond = DIMSE_queryUser(m_assoc,
+			                       presID,
+			                       &request,
+			                       requestedDataset,
+			                       responseCount,
+			                       progressCallback,
+			                       callback,
+			                       m_blockMode,
+			                       m_dimseTimeout,
+			                       &response,
+			                       &statusDetail,
+			                       dump_filepath,
+			                       query_tags);
+		}
+	}
+
+
+	// DcmPathProcessor proc;
+	// for (const auto &[key, val] : tags) {
+	// 	cond = proc.applyPathWithValue(requestedDataset, key.c_str());
+	// 	if (cond.bad()) {
+	// 		DCMNET_ERROR("bad override tag: " << key);
+	// 		return cond;
+	// 	}
+	// }
+
+
+
+	return cond;
+}
+
+DcmTag prepareQueryTag(OFConsoleApplication &app, const char *tag_string) {
+	unsigned int g = 0xffff;
+	unsigned int e = 0xffff;
+
+	int n = 0;
+	OFString dicname, valstr;
+	OFString msg;
+
+	char msg2[200];
+
+	n = sscanf(tag_string, "%x,%x=", &g, &e);
+	const OFString toParse = tag_string;
+	const size_t eqPos = toParse.find("=");
+
+	if (n < 2) {
+		if (eqPos != OFString_npos) {
+			dicname = toParse.substr(0, eqPos);
+			valstr = toParse.substr(eqPos + 1, toParse.length());
+		} else {
+			dicname = tag_string;
+			DcmTagKey key{0xffff, 0xffff};
+			const DcmDataDictionary &globalDataDict = dcmDataDict.rdlock();
+			const DcmDictEntry *dicent = globalDataDict.findEntry(dicname.c_str());
+			dcmDataDict.rdunlock();
+
+			if (dicent != nullptr) {
+				key = dicent->getKey();
+				g = key.getGroup();
+				e = key.getElement();
+			} else {
+				msg = "bad key format or dictionary name not found in dictionary: " + dicname;
+				app.printError(msg.c_str());
+			}
+		}
+	} else {
+		if (eqPos != OFString_npos) {
+			valstr = toParse.substr(eqPos + 1, toParse.length());
+		}
+	}
+	DcmTag tag{OFstatic_cast(Uint16, g), OFstatic_cast(Uint16, e)};
+	if (tag.error() != EC_Normal) {
+		const std::string error_msg = fmt::format("unknown tag: ({:04x},{:04x})", g, e);
+		app.printError(error_msg.c_str());
+	}
+
+	// DcmElement *elem = DcmItem::newDicomElement(tag);
+	// if (elem == nullptr) {
+	// 	const std::string error_msg = fmt::format("cannot create element for tag: ({:04x},{:04x})", g, e);
+	// 	app.printError(error_msg.c_str());
+	// }
+	//
+	// if (!valstr.empty()) {
+	// 	if (elem->putString(valstr.c_str()).bad()) {
+	// 		const std::string error_msg = fmt::format("cannot put tag value: ({:04x},{:04x})=\"{}\"", g, e, valstr.c_str());
+	// 		app.printError(error_msg.c_str());
+	// 	}
+	// }
+
+	return tag;
 }
