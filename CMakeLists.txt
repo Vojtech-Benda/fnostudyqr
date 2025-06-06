@@ -2,14 +2,15 @@ cmake_minimum_required(VERSION 3.30)
 project(fnostudyqr)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-static -static-libgcc -static-libstdc++")
 
 find_package(fmt REQUIRED)
 find_package(DCMTK REQUIRED)
 
 set(SOURCES main.cpp
-src/PatientRecord.cpp
-src/StudyQueryRetriever.cpp
-src/Callbacks.cpp)
+    src/PatientRecord.cpp
+    src/StudyQueryRetriever.cpp
+    src/Callbacks.cpp)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
