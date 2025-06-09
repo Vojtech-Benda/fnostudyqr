@@ -445,7 +445,7 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
                                     int                        response_count,
                                     T_DIMSE_C_FindRSP *        response,
                                     DcmDataset *               response_identifiers,
-                                    const OFString &           dump_filepath,
+                                    const std::string &        dump_filepath,
                                     std::vector<TagValuePair> &query_tags) {
 	if (DCM_dcmnetLogger.isEnabledFor(OFLogger::DEBUG_LOG_LEVEL)) {
 		OFString temp_string;
@@ -516,7 +516,7 @@ static void progressCallback(void *                     callback_data,
                              int                        response_count,
                              T_DIMSE_C_FindRSP *        response,
                              DcmDataset *               response_identifiers,
-                             const OFString &           dump_filepath,
+                             const std::string &        dump_filepath,
                              std::vector<TagValuePair> &query_tags) {
 	QueryCallback *callback = OFreinterpret_cast(QueryCallback*, callback_data);
 	if (callback)
@@ -640,7 +640,7 @@ OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
                             int                         timeout,
                             T_DIMSE_C_FindRSP *         response,
                             DcmDataset **               status_detail,
-                            const OFString &            dump_filepath,
+                            const std::string &         dump_filepath,
                             std::vector<TagValuePair> & query_tags) {
 	T_DIMSE_Message req{}, rsp{};
 	DIC_US          msgID;
@@ -896,7 +896,7 @@ OFCondition DIMSE_moveUser_(T_ASC_Association *          assoc,
 }
 
 OFCondition QueryRetriever::dumpTags(const PatientRecord &      patient_record,
-                                     const OFString &           dump_filepath,
+                                     const std::string &        dump_filepath,
                                      std::vector<TagValuePair> &query_tags,
                                      QueryCallback *            callback) const {
 	OFCondition       cond = EC_Normal;
@@ -986,7 +986,7 @@ DcmTag prepareQueryTag(OFConsoleApplication &app, const char *tag_string) {
 	OFString dicname, valstr;
 	OFString msg;
 
-	char msg2[200];
+	// char msg2[200];
 
 	n = sscanf(tag_string, "%x,%x=", &g, &e);
 	const OFString toParse = tag_string;

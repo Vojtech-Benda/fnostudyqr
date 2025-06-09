@@ -85,10 +85,10 @@ public:
 
 	OFCondition performMoveRequest(const PatientRecord &patient_record);
 
-	OFCondition dumpTags(const PatientRecord &           patient_record,
-	                     const OFString & dump_filepath,
+	OFCondition dumpTags(const PatientRecord &      patient_record,
+	                     const std::string &        dump_filepath,
 	                     std::vector<TagValuePair> &query_tags,
-	                     QueryCallback *                 callback) const;
+	                     QueryCallback *            callback) const;
 
 	unsigned short        m_port{0}; // tcp/ip port of peer
 	unsigned short        m_retrievePort{0};
@@ -134,7 +134,7 @@ public:
 	                      int                        response_count,
 	                      T_DIMSE_C_FindRSP *        response,
 	                      DcmDataset *               response_identifiers,
-	                      const OFString &           dump_filepath,
+	                      const std::string &        dump_filepath,
 	                      std::vector<TagValuePair> &query_tags) = 0;
 
 	void setAssociation(T_ASC_Association *assoc);
@@ -164,7 +164,7 @@ public:
 	              int                        response_count,
 	              T_DIMSE_C_FindRSP *        response,
 	              DcmDataset *               response_identifiers,
-	              const OFString &           dump_filepath,
+	              const std::string &        dump_filepath,
 	              std::vector<TagValuePair> &query_tags) override;
 
 private:
@@ -184,7 +184,7 @@ static void progressCallback(void *                     callback_data,
                              int                        response_count,
                              T_DIMSE_C_FindRSP *        response,
                              DcmDataset *               response_identifiers,
-                             const OFString &           dump_filepath,
+                             const std::string &        dump_filepath,
                              std::vector<TagValuePair> &query_tags);
 
 typedef void (*DIMSE_QueryUserCallback)(void *                 callbackData,
@@ -200,7 +200,7 @@ typedef void (*DIMSE_DumpUserCallback)(void *                     callbackData,
                                        int                        responseCount,
                                        T_DIMSE_C_FindRSP *        response,
                                        DcmDataset *               responseIdentifiers,
-                                       const OFString &           dump_filepath,
+                                       const std::string &        dump_filepath,
                                        std::vector<TagValuePair> &query_tags);
 
 OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
@@ -228,7 +228,7 @@ OFCondition DIMSE_queryUser(T_ASC_Association *         assoc,
                             int                         timeout,
                             T_DIMSE_C_FindRSP *         response,
                             DcmDataset **               status_detail,
-                            const OFString &            dump_filepath,
+                            const std::string &         dump_filepath,
                             std::vector<TagValuePair> & query_tags);
 
 OFCondition DIMSE_moveUser_(T_ASC_Association *          assoc,

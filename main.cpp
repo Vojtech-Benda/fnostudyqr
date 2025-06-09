@@ -125,6 +125,7 @@ int main(int argc, char *argv[]) {
                   "filepath of CSV file with retrieved tags");
     cmd.addOption("--retrieve-tags", "-rt", "retrieve queried tags and store them to CSV");
     cmd.addOption("--retrieve-files", "-rf", "perform C-MOVE request for queried tags");
+    cmd.addOption("--no-missing-log", "-nl", "disable logging missing studies in PACS");
 
     prepareCmdLineArgs(argc, argv, FNO_CONSOLE_APPLICATION);
     if (app.parseCommandLine(cmd, argc, argv)) {
@@ -170,7 +171,6 @@ int main(int argc, char *argv[]) {
         if (cmd.findOption("--patient-list-file"))
             app.checkValue(cmd.getValue(opt_filepath));
 
-        cmd.beginOptionBlock();
         if (cmd.findOption("--add-modality-missing")) {
             opt_addModalities = E_addModalities::ADD_MODALITIES_MISSING;
             app.checkValue(cmd.getValue(opt_queryModality));
@@ -349,22 +349,35 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+
     missingStudiesFile.close();
-    fmt::print("Records of missing studies written to {}\n", missingStudiesFilename);
+
+    // remove missing-studies file
+    if (!opt_logMissingStudies) {
+        OFLOG_DEBUG(mainLogger, "Removing file \"" << missingStudiesFilename.c_str() << "\"");
+        std::filesystem::remove(missingStudiesFilename);
+    }
+
+    if (opt_logMissingStudies) {
+        fmt::print("Records of missing studies written to {}\n", missingStudiesFilename);
+    }
 
     if (opt_retrieveTags) {
 
         fmt::print("C-FIND ---------- DUMP TAGS\n");
 
-        OFString header{"PatientID,StudyInstanceUID,SeriesDescription,"};
-        for (auto it = opt_overrideTags.begin(); it != opt_overrideTags.end(); ++it) {
-            header += *it;
-            if (it != opt_overrideTags.end()) {
+        OFString header{"PatientID,StudyInstanceUID,SeriesDescription"};
+        auto iter = opt_overrideTags.begin();
+        while (iter != opt_overrideTags.end()) {
+            if (iter != opt_overrideTags.end()) {
                 header += ",";
             }
+            header += *iter;
+            ++iter;
         }
 
-        fmt::ostream fileStream = fmt::output_file(opt_dumpFilepath.c_str(),
+        const std::string dumpFilePath = fmt::format("{}-{:%Y-%m-%d-%H-%M-%S}.csv", opt_dumpFilepath.c_str(), tm);
+        fmt::ostream fileStream = fmt::output_file(dumpFilePath,
                                                    fmt::file::CREATE | fmt::file::WRONLY | fmt::file::APPEND);
         fileStream.print("{}\n", header.c_str());
         fileStream.close();
@@ -383,8 +396,9 @@ int main(int argc, char *argv[]) {
                 queryTags.push_back(TagValuePair{tag, ""});
             }
 
-            cond = queryRetriever.dumpTags(record, opt_dumpFilepath, queryTags, nullptr);
+            cond = queryRetriever.dumpTags(record, dumpFilePath, queryTags, nullptr);
         }
+        fmt::print("Finished dumping tags: {}\n", header.c_str());
     }
 
     // TODO: Perhaps add in the future? Replace with current opt_overrideTags querying?
