@@ -30,7 +30,7 @@
 #include "PatientRecord.hpp"
 #include "Callbacks.hpp"
 
-constexpr int EXITCODE_EMPTY_RECORD_MAP        = 10;
+constexpr int EXITCODE_EMPTY_RECORD_LIST        = 10;
 constexpr int EXITCODE_NO_MODALITIES_SPECIFIED = 11;
 constexpr int EXITCODE_TEXT_FILE_ERROR         = 12;
 

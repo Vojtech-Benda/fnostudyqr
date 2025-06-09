@@ -260,8 +260,8 @@ int main(int argc, char *argv[]) {
     if (!recordList.empty())
         fmt::print("Found {} records to query\n", recordList.size());
     else {
-        OFLOG_FATAL(mainLogger, "Record map is empty");
-        return EXITCODE_EMPTY_RECORD_MAP;
+        OFLOG_FATAL(mainLogger, "Record list is empty");
+        return EXITCODE_EMPTY_RECORD_LIST;
     }
 
     std::string queryModality{};
