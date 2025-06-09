@@ -854,13 +854,14 @@ OFCondition DIMSE_moveUser_(T_ASC_Association *          assoc,
 						*/
 						DCMNET_WARN(DIMSE_warn_str(assoc) << "Reading but ignoring response identifier set");
 						DcmDataset *tempset = nullptr;
-						cond                = DIMSE_receiveDataSetInMemory(assoc,
-						                                                   block_mode,
-						                                                   dimse_timeout,
-						                                                   &pres_id,
-						                                                   &tempset,
-						                                                   nullptr,
-						                                                   nullptr);
+
+						cond = DIMSE_receiveDataSetInMemory(assoc,
+						                                    block_mode,
+						                                    dimse_timeout,
+						                                    &pres_id,
+						                                    &tempset,
+						                                    nullptr,
+						                                    nullptr);
 						delete tempset;
 						if (cond != EC_Normal) return cond;
 					} else {

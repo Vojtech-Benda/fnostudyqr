@@ -1,7 +1,6 @@
 #include <filesystem>
 #include <fstream>
 #include <chrono>
-#include <map>
 
 #include "fmt/format.h"
 #include "fmt/ranges.h"
@@ -398,7 +397,8 @@ int main(int argc, char *argv[]) {
 
             cond = queryRetriever.dumpTags(record, dumpFilePath, queryTags, nullptr);
         }
-        fmt::print("Finished dumping tags: {}\n", header.c_str());
+        fmt::print("Finished writing tags: {}\n", header.c_str());
+        fmt::print("Tags written to: {}\n", dumpFilePath);
     }
 
     // TODO: Perhaps add in the future? Replace with current opt_overrideTags querying?
