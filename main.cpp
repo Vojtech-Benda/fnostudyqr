@@ -57,6 +57,7 @@ int main(int argc, char *argv[]) {
     OFBool                opt_retrieveTags{OFFalse};
     OFBool                opt_retrieveFiles{OFFalse};
     OFString              opt_dumpFilepath{"dumped_tags.csv"};
+    OFBool                opt_logMissingStudies{OFTrue};
 
     cmd.setParamColumn(LONGCOL + SHORTCOL + 4);
     cmd.addParam("pacs-ip", "hostname of DICOM peer");
@@ -206,7 +207,9 @@ int main(int argc, char *argv[]) {
             opt_retrieveFiles = OFTrue;
         }
 
-        cmd.endOptionBlock();
+        if (cmd.findOption("--no-missing-log")) {
+            opt_logMissingStudies = OFFalse;
+        }
 
         OFLOG_DEBUG(mainLogger, rcsid.c_str() << OFendl);
 
@@ -313,8 +316,10 @@ int main(int argc, char *argv[]) {
     const std::string missingStudiesFilename = fmt::format("missing-studies-{:%Y-%m-%d-%H-%M-%S}.txt", tm);
 
     fmt::ostream missingStudiesFile = fmt::output_file(missingStudiesFilename);
-    missingStudiesFile.print("{:%Y-%m-%d %H:%M:%S}\n", tm);
-    missingStudiesFile.print("PatientID, StudyDate\n");
+    if (opt_logMissingStudies) {
+        missingStudiesFile.print("{:%Y-%m-%d %H:%M:%S}\n", tm);
+        missingStudiesFile.print("PatientID, StudyDate\n");
+    }
 
     if (opt_retrieveTags) {
         OFLOG_INFO(mainLogger, "QueryRetriever set up for dumping tags");
@@ -339,7 +344,9 @@ int main(int argc, char *argv[]) {
             fmt::print("{} - {}\n",
                        msg,
                        fmt::format(fg(fmt::color::green), "SUCCESS, {} study/ies", record.m_uid_list.size()));
-            fmt::print("StudyInstanceUIDs: \n{}\n", record.m_uid_list);
+            if (opt_logMissingStudies) {
+                fmt::print("StudyInstanceUIDs: \n{}\n", record.m_uid_list);
+            }
         }
     }
     missingStudiesFile.close();
