@@ -471,19 +471,29 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
 	response_identifiers->findAndGetOFString(DCM_StudyInstanceUID, studyuid);
 	response_identifiers->findAndGetOFString(DCM_SeriesDescription, seriesdesc);
 
-	std::string values = fmt::format("{},{},{},", id.c_str(), studyuid.c_str(), seriesdesc.c_str());
+	std::string values = fmt::format("{},{},{}", id.c_str(), studyuid.c_str(), seriesdesc.c_str());
 
 	// it == {DcmTag, OFstring}
-	for (auto it = query_tags.begin(); it != query_tags.end(); ++it) {
-		response_identifiers->findAndGetOFString(it->first, it->second);
-		if (it->second.empty()) {
-			it->second = "EMPTY";
-		}
-
-		values += it->second.c_str();
-		if (it != query_tags.end()) {
+	auto iter = query_tags.begin();
+	while (iter != query_tags.end()) {
+		if (iter != query_tags.end()) {
 			values += ",";
 		}
+
+		if (response_identifiers->findAndGetOFString(iter->first, iter->second).bad()) {
+			OFLOG_WARN(qrLogger,
+			           fmt::format("Tag {} not found in response dataset serie {}",
+				           DcmTag{iter->first}.getTagName(),
+				           seriesdesc));
+		}
+
+		if (iter->second.empty()) {
+			values += "EMPTY";
+		} else {
+			values += iter->second.c_str();
+		}
+
+		++iter;
 	}
 
 	fileStream.print("{}\n", values);
