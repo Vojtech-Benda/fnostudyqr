@@ -169,6 +169,7 @@ public:
 
 private:
 	const int m_cancelAfterNResponses{0};
+	bool m_ignoreEmptyTags{false};
 };
 
 static void progressCallback(void *                 callback_data,
