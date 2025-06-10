@@ -482,16 +482,19 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
 
 		if (response_identifiers->findAndGetOFString(iter->first, iter->second).bad()) {
 			OFLOG_WARN(qrLogger,
-			           fmt::format("Tag {} not found in response dataset serie {}",
+			           fmt::format("Tag {} not found or has no value in response dataset serie {}",
 				           DcmTag{iter->first}.getTagName(),
 				           seriesdesc));
 		}
 
-		if (iter->second.empty()) {
-			values += "EMPTY";
-		} else {
+		if (!iter->second.empty()) {
 			values += iter->second.c_str();
 		}
+		// if (iter->second.empty()) {
+		// 	values += "EMPTY";
+		// } else {
+		// 	values += iter->second.c_str();
+		// }
 
 		++iter;
 	}
