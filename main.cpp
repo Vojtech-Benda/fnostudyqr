@@ -365,11 +365,11 @@ int main(int argc, char *argv[]) {
 
         fmt::print("C-FIND ---------- DUMP TAGS\n");
 
-        OFString header{"PatientID,StudyInstanceUID,SeriesDescription"};
+        OFString header{"PatientID;StudyInstanceUID;SeriesDescription"};
         auto iter = opt_overrideTags.begin();
         while (iter != opt_overrideTags.end()) {
             if (iter != opt_overrideTags.end()) {
-                header += ",";
+                header += ";";
             }
             header += *iter;
             ++iter;
@@ -397,7 +397,7 @@ int main(int argc, char *argv[]) {
 
             cond = queryRetriever.dumpTags(record, dumpFilePath, queryTags, nullptr);
         }
-        fmt::print("Finished writing tags: {}\n", header.c_str());
+        fmt::print("Writing tags: {}\n", header.c_str());
         fmt::print("Tags written to: {}\n", dumpFilePath);
     }
 

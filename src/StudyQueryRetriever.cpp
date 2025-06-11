@@ -466,23 +466,50 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
 
 	fmt::ostream fileStream = fmt::output_file(dump_filepath.c_str(), fmt::file::WRONLY | fmt::file::APPEND);
 
-	OFString id, studyuid, seriesdesc;
+	OFString id, studyuid, seriesdesc, imagetype;
 	response_identifiers->findAndGetOFString(DCM_PatientID, id);
 	response_identifiers->findAndGetOFString(DCM_StudyInstanceUID, studyuid);
 	response_identifiers->findAndGetOFString(DCM_SeriesDescription, seriesdesc);
+	response_identifiers->findAndGetOFString(DCM_ImageType, imagetype);
 
-	std::string values = fmt::format("{},{},{}", id.c_str(), studyuid.c_str(), seriesdesc.c_str());
+	// messy af, ignore
+	OFStandard::toLower(imagetype);
+	if (imagetype.find("derived") != OFString_npos ||
+		imagetype.find("secondary") != OFString_npos ||
+		imagetype.find("localizer") != OFString_npos) {
+		OFLOG_INFO(qrLogger, "Received dataset is derived/secondary; not writing queried tags");
+		return;
+	}
+
+	// messy af, ignore
+	OFStandard::toLower(seriesdesc);
+	if (seriesdesc.find("topog") != OFString_npos ||
+		seriesdesc.find("scout") != OFString_npos ||
+		seriesdesc.find("dose") != OFString_npos ||
+		seriesdesc.find("service") != OFString_npos ||
+		seriesdesc.find("report") != OFString_npos ||
+		seriesdesc.find("processed") != OFString_npos ||
+		seriesdesc.find("vrt") != OFString_npos ||
+		seriesdesc.find("view") != OFString_npos ||
+		seriesdesc.find("patient") != OFString_npos ||
+		seriesdesc.find("protocol") != OFString_npos) {
+		OFLOG_INFO(qrLogger, "Received dataset is topogram/report/processed/volume rendering, not writing queried tags");
+		return;
+	}
+
+	std::string values = fmt::format("{};{};{}", id, studyuid, seriesdesc);
 
 	// it == {DcmTag, OFstring}
 	auto iter = query_tags.begin();
 	while (iter != query_tags.end()) {
 		if (iter != query_tags.end()) {
-			values += ",";
+			values += ";";
 		}
 
 		if (response_identifiers->findAndGetOFString(iter->first, iter->second).bad()) {
-			OFLOG_WARN(qrLogger,
-			           fmt::format("Tag {} not found or has no value in response dataset serie {}",
+			OFLOG_INFO(qrLogger,
+			           fmt::format("PatientID={}: tag {} not found/no value in serie {}",
+				           id,
 				           DcmTag{iter->first}.getTagName(),
 				           seriesdesc));
 		}
@@ -948,6 +975,10 @@ OFCondition QueryRetriever::dumpTags(const PatientRecord &      patient_record,
 	requestedDataset->putAndInsertString(DCM_QueryRetrieveLevel, "SERIES");
 	requestedDataset->putAndInsertString(DCM_PatientID, patient_record.m_id.c_str());
 	requestedDataset->putAndInsertString(DCM_SeriesDescription, "");
+
+	// filter out service/dose reports, secondary/derived images
+	requestedDataset->putAndInsertString(DCM_Modality, patient_record.m_modality.c_str());
+	requestedDataset->putAndInsertString(DCM_ImageType, "");
 
 	// receive C-FIND response with requested tags (override_tags) for each study
 	for (const auto &uid : patient_record.m_uid_list) {
