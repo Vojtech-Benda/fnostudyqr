@@ -10,7 +10,7 @@
 #include "fmt/format.h"
 #include "fmt/color.h"
 
-auto splitString = [](std::string_view line, const char delimiter = ',', const std::size_t parts = 4) {
+auto splitString = [](std::string_view line, const char delimiter = ';', const std::size_t parts = 3) {
 	std::vector<std::string> tokens(parts, "");
 
 	std::size_t start{0}, end;
@@ -71,7 +71,7 @@ std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath) {
 		while (std::getline(fileObject, line)) {
 			if (line.empty()) continue;
 
-			auto tokens = splitString(line); // tokens[name, id, study_date, modality]
+			auto tokens = splitString(line, ';', 3); // tokens[name, id, study_date, modality]
 
 			PatientRecord record{};
 			// record.m_name       = nameToDcmFormat(tokens[0]);
