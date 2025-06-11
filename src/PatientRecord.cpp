@@ -30,16 +30,19 @@ auto checkRecord = [](const PatientRecord &record) {
 
 
 	// check all
-	if (record.m_name.empty() || record.m_id.empty() || record.m_study_date.empty()) {
+	// record.m_name.empty() ||
+	if (record.m_id.empty() || record.m_study_date.empty()) {
 		msg = fmt::format("PatientName, PatientID or StudyDate is empty");
 		fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 		checkFailed = true;
+		msg.clear();
 	}
 
 	if (std::ranges::any_of(record.m_id, ::isalpha)) {
 		msg = fmt::format(R"(ID "{}" contains non-numeric characters)", record.m_id);
 		fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 		checkFailed = true;
+		msg.clear();
 	}
 
 	// check study date
@@ -48,6 +51,7 @@ auto checkRecord = [](const PatientRecord &record) {
 		                  record.m_id, record.m_study_date);
 		fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 		checkFailed = true;
+		msg.clear();
 	}
 
 	return checkFailed;
@@ -70,12 +74,12 @@ std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath) {
 			auto tokens = splitString(line); // tokens[name, id, study_date, modality]
 
 			PatientRecord record{};
-			record.m_id         = idToDcmFormat(tokens[1]);
-			record.m_name       = nameToDcmFormat(tokens[0]);
-			record.m_study_date = dateToDcmFormat(tokens[2]);
+			// record.m_name       = nameToDcmFormat(tokens[0]);
+			record.m_id         = idToDcmFormat(tokens[0]);
+			record.m_study_date = dateToDcmFormat(tokens[1]);
 
-			if (!tokens[3].empty()) {
-				record.m_modality = tokens[3];
+			if (!tokens[2].empty()) {
+				record.m_modality = tokens[2];
 			}
 
 			// sanity check record for invalid characters
