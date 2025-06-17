@@ -8,6 +8,7 @@
 #include <utility>
 
 #include <fmt/os.h>
+#include <fmt/ranges.h>
 
 #include "fmt/color.h"
 
@@ -466,36 +467,26 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
 
 	fmt::ostream fileStream = fmt::output_file(dump_filepath.c_str(), fmt::file::WRONLY | fmt::file::APPEND);
 
-	OFString id, studyuid, seriesdesc, imagetype;
+	// messy af, ignore
+	OFString imagetype{};
+	response_identifiers->findAndGetOFString(DCM_ImageType, imagetype);
+	OFStandard::toLower(imagetype);
+	if (this->containsFilterWord(imagetype)) {
+		OFLOG_INFO(qrLogger, "Received dataset is derived/secondary data, not writing queried tags");
+		return;
+	}
+
+	OFString seriesdesc{};
+	response_identifiers->findAndGetOFString(DCM_SeriesDescription, seriesdesc);
+	OFStandard::toLower(seriesdesc);
+	if (this->containsFilterWord(seriesdesc)) {
+		OFLOG_INFO(qrLogger, "Received dataset is topogram/report/processed data, not writing queried tags");
+		return;
+	}
+
+	OFString id, studyuid;
 	response_identifiers->findAndGetOFString(DCM_PatientID, id);
 	response_identifiers->findAndGetOFString(DCM_StudyInstanceUID, studyuid);
-	response_identifiers->findAndGetOFString(DCM_SeriesDescription, seriesdesc);
-	response_identifiers->findAndGetOFString(DCM_ImageType, imagetype);
-
-	// messy af, ignore
-	OFStandard::toLower(imagetype);
-	if (imagetype.find("derived") != OFString_npos ||
-		imagetype.find("secondary") != OFString_npos ||
-		imagetype.find("localizer") != OFString_npos) {
-		OFLOG_INFO(qrLogger, "Received dataset is derived/secondary; not writing queried tags");
-		return;
-	}
-
-	// messy af, ignore
-	OFStandard::toLower(seriesdesc);
-	if (seriesdesc.find("topog") != OFString_npos ||
-		seriesdesc.find("scout") != OFString_npos ||
-		seriesdesc.find("dose") != OFString_npos ||
-		seriesdesc.find("service") != OFString_npos ||
-		seriesdesc.find("report") != OFString_npos ||
-		seriesdesc.find("processed") != OFString_npos ||
-		seriesdesc.find("vrt") != OFString_npos ||
-		seriesdesc.find("view") != OFString_npos ||
-		seriesdesc.find("patient") != OFString_npos ||
-		seriesdesc.find("protocol") != OFString_npos) {
-		OFLOG_INFO(qrLogger, "Received dataset is topogram/report/processed/volume rendering, not writing queried tags");
-		return;
-	}
 
 	std::string values = fmt::format("{};{};{}", id, studyuid, seriesdesc);
 
@@ -508,15 +499,11 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
 
 		if (response_identifiers->findAndGetOFString(iter->first, iter->second).bad()) {
 			OFLOG_INFO(qrLogger,
-			           fmt::format("PatientID={}: tag {} not found/no value in serie {}",
+			           fmt::format("PatientID={}: tag {} not found/no value in series {}",
 				           id,
 				           DcmTag{iter->first}.getTagName(),
 				           seriesdesc));
 		}
-
-		// if (!iter->second.empty()) {
-		// 	values += iter->second.c_str();
-		// }
 
 		if (iter->second.empty()) {
 			values += "EMPTY";
@@ -540,6 +527,14 @@ void QueryDefaultCallback::callback(T_DIMSE_C_FindRQ *         request,
 		}
 	}
 }
+
+bool QueryDefaultCallback::containsFilterWord(const OFString &string_val) const {
+	return std::ranges::any_of(m_filterWords,
+	                           [&string_val](const OFString &word) {
+		                           return string_val.find(word) != OFString_npos;
+	                           });
+}
+
 
 static void progressCallback(void *                 callback_data,
                              T_DIMSE_C_FindRQ *     request,

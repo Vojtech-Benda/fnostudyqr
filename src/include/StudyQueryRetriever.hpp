@@ -167,9 +167,12 @@ public:
 	              const std::string &        dump_filepath,
 	              std::vector<TagValuePair> &query_tags) override;
 
+	bool containsFilterWord(const OFString& string_val) const;
+
 private:
 	const int m_cancelAfterNResponses{0};
 	bool m_ignoreEmptyTags{false};
+	const std::set<OFString> m_filterWords{"secondary", "derived", "localizer", "topog", "scout", "report", "dose", "protocol"};
 };
 
 static void progressCallback(void *                 callback_data,
