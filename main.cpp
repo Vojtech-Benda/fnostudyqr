@@ -22,7 +22,7 @@ enum E_addModalities {
 
 int main(int argc, char *argv[]) {
     constexpr auto    FNO_CONSOLE_APPLICATION{"fnostudyqr"};
-    constexpr auto *  APP_VERSION{"0.7.0"};
+    constexpr auto *  APP_VERSION{"0.7.1"};
     constexpr auto    APP_RELEASE_DATE{"2025-01-05"};
     const std::string rcsid = fmt::format("${}: ver. {} rel. {}\n$dcmtk: ver. {} rel. {}",
                                           FNO_CONSOLE_APPLICATION,
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
     std::vector<OFString> opt_overrideTags{};
     OFBool                opt_retrieveTags{OFFalse};
     OFBool                opt_retrieveFiles{OFFalse};
-    OFString              opt_dumpFilepath{"dumped_tags.csv"};
+    OFString              opt_dumpFilepath{"./dumped_tags"};
     OFBool                opt_logMissingStudies{OFTrue};
 
     cmd.setParamColumn(LONGCOL + SHORTCOL + 4);
@@ -120,11 +120,11 @@ int main(int argc, char *argv[]) {
     cmd.addOption("--dump-filepath",
                   "-df",
                   1,
-                  "[f]ilepath: string (default: \"dumped_tags.csv\")",
-                  "filepath of CSV file with retrieved tags");
+                  "[f]ilepath: string (default: \"<output-directory>/dumped_tags.csv\")",
+                  "CSV filepath to write retrieved tags, excluding extension");
     cmd.addOption("--retrieve-tags", "-rt", "retrieve queried tags and store them to CSV");
     cmd.addOption("--retrieve-files", "-rf", "perform C-MOVE request for queried tags");
-    cmd.addOption("--no-missing-log", "-nl", "disable logging missing studies in PACS");
+    cmd.addOption("--no-missing-file", "-nf", "disable writing missing studies to file");
 
     prepareCmdLineArgs(argc, argv, FNO_CONSOLE_APPLICATION);
     if (app.parseCommandLine(cmd, argc, argv)) {
@@ -365,6 +365,10 @@ int main(int argc, char *argv[]) {
 
         fmt::print("C-FIND ---------- DUMP TAGS\n");
 
+        if (opt_overrideTags.empty()) {
+            fmt::print("no additional tags to query for, writing only defaults: PatientID, StudyInstanceUID, SeriesDescription\n");
+        }
+
         OFString header{"PatientID;StudyInstanceUID;SeriesDescription"};
         auto iter = opt_overrideTags.begin();
         while (iter != opt_overrideTags.end()) {
@@ -392,7 +396,7 @@ int main(int argc, char *argv[]) {
             std::vector<TagValuePair> queryTags;
             for (const auto &ov_tag : opt_overrideTags) {
                 DcmTag tag = prepareQueryTag(app, ov_tag.c_str());
-                queryTags.push_back(TagValuePair{tag, ""});
+                queryTags.emplace_back(tag, ""); // adds TagValuePar<tag, "">
             }
 
             cond = queryRetriever.dumpTags(record, dumpFilePath, queryTags, nullptr);
