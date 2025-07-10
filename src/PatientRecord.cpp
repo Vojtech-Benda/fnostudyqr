@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <chrono>
 
 #include "fmt/format.h"
 #include "fmt/color.h"
@@ -57,7 +58,8 @@ auto checkRecord = [](const PatientRecord &record) {
 	return checkFailed;
 };
 
-std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath) {
+std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath,
+	const studyDateRangeExtend &studyDateRange) {
 	std::ifstream fileObject{textFilePath, std::ios::in};
 
 	if (!fileObject.is_open()) {
@@ -76,7 +78,7 @@ std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath) {
 			PatientRecord record{};
 			// record.m_name       = nameToDcmFormat(tokens[0]);
 			record.m_id         = idToDcmFormat(tokens[0]);
-			record.m_study_date = dateToDcmFormat(tokens[1]);
+			record.m_study_date = dateToDcmFormat(tokens[1], studyDateRange);
 
 			if (!tokens[2].empty()) {
 				record.m_modality = tokens[2];
@@ -118,7 +120,7 @@ std::string nameToDcmFormat(std::string_view fullname) {
 	return fmt::format("{}^{}", tokens[1], tokens[0]);
 }
 
-std::string dateToDcmFormat(std::string_view date) {
+std::string dateToDcmFormat(std::string_view date, const studyDateRangeExtend &study_date_range) {
 	auto tokens = splitString(date, '.', 3); // tokens[day, month, year]
 
 	for (auto &token : tokens) {
@@ -126,10 +128,26 @@ std::string dateToDcmFormat(std::string_view date) {
 		std::erase_if(token, ::isalpha);
 	}
 
-	return fmt::format("{}{:02}{:02}",
-	                   std::stoi(tokens[2]),
-	                   std::stoi(tokens[1]),
-	                   std::stoi(tokens[0]));
+	unsigned day   = std::stoi(tokens[0]);
+	unsigned month = std::stoi(tokens[1]);
+	int      year  = std::stoi(tokens[2]);
+
+	if (study_date_range.rangeMatch) {
+		std::chrono::year_month year_month_low{std::chrono::year{year}, std::chrono::month{month}};
+		year_month_low -= std::chrono::months{study_date_range.byMonth};
+
+		std::chrono::year_month year_month_high{std::chrono::year{year}, std::chrono::month{month}};
+		year_month_high += std::chrono::months{study_date_range.byMonth};
+
+		return fmt::format("{}{:02}01-{}{:02}01",
+		                   static_cast<int>(year_month_low.year()),
+		                   static_cast<unsigned int>(year_month_low.month()),
+		                   static_cast<int>(year_month_high.year()),
+		                   static_cast<unsigned int>(year_month_high.month())
+		                  );
+	}
+
+	return fmt::format("{}{:02}{:02}", year, month, day);
 }
 
 std::string idToDcmFormat(std::string_view id) {

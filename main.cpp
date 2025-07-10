@@ -20,6 +20,7 @@ enum E_addModalities {
     ADD_MODALITIES_MISSING
 };
 
+
 int main(int argc, char *argv[]) {
     constexpr auto    FNO_CONSOLE_APPLICATION{"fnostudyqr"};
     constexpr auto *  APP_VERSION{"0.7.1"};
@@ -57,6 +58,7 @@ int main(int argc, char *argv[]) {
     OFBool                opt_retrieveFiles{OFFalse};
     OFString              opt_dumpFilepath{"./dumped_tags"};
     OFBool                opt_logMissingStudies{OFTrue};
+    studyDateRangeExtend  opt_extendStudyDate{};
 
     cmd.setParamColumn(LONGCOL + SHORTCOL + 4);
     cmd.addParam("pacs-ip", "hostname of DICOM peer");
@@ -109,7 +111,15 @@ int main(int argc, char *argv[]) {
                   1,
                   "modality: string",
                   "add modality to all read patient records, overwrites read modalities");
-    cmd.addOption("--tag", "-t", 1, "[t]ag: gggg,eeee=\"str\" or name=\"str\"", "additional query tags");
+    cmd.addOption("--tag",
+                  "-t",
+                  1,
+                  "[t]ag: gggg,eeee=\"str\" or name=\"str\"",
+                  "additional query tags");
+    cmd.addOption("--extend-date",
+                  1,
+                  "month: integer (default: 0)",
+                  "extend all study dates to range match <date1> - <date2>\n<date1> = StudyDate - month\n<date2> = StudyDate + month");
 
     cmd.addGroup("output options:");
     cmd.addOption("--output-directory",
@@ -210,6 +220,16 @@ int main(int argc, char *argv[]) {
             opt_logMissingStudies = OFFalse;
         }
 
+        if (cmd.findOption("--extend-date")) {
+            // OFCmdUnsignedInt year{};
+            OFCmdUnsignedInt month{};
+            // app.checkValue(cmd.getValueAndCheckMin(year, 0));
+            app.checkValue(cmd.getValueAndCheckMin(month, 0));
+            opt_extendStudyDate.rangeMatch = true;
+            // opt_extendStudyDate.byYear = OFstatic_cast(Uint8, year);
+            opt_extendStudyDate.byMonth = OFstatic_cast(unsigned int, month);
+        }
+
         OFLOG_DEBUG(mainLogger, rcsid.c_str() << OFendl);
 
         if (queryRetriever.m_retrievePort <= 0 && queryRetriever.m_receiverAETitle.empty()) {
@@ -254,7 +274,7 @@ int main(int argc, char *argv[]) {
     }
 
     fmt::print("READING TEXT FILE ------------------------- \n");
-    std::vector<PatientRecord> recordList = readPatientRecords(filepath.string());
+    std::vector<PatientRecord> recordList = readPatientRecords(filepath.string(), opt_extendStudyDate);
 
     if (!recordList.empty())
         fmt::print("Found {} records to query\n", recordList.size());
@@ -333,7 +353,7 @@ int main(int argc, char *argv[]) {
     cond = EC_Normal;
 
     for (auto &record: recordList) {
-        cond = queryRetriever.performFindRequest(record, queryModality, nullptr);
+        cond                  = queryRetriever.performFindRequest(record, queryModality, nullptr);
         const std::string msg = fmt::format("PatientID: {}, StudyDate: {}", record.m_id, record.m_study_date);
 
         if (record.m_uid_list.empty()) {
@@ -362,7 +382,6 @@ int main(int argc, char *argv[]) {
     }
 
     if (opt_retrieveTags) {
-
         fmt::print("C-FIND ---------- DUMP TAGS\n");
 
         if (opt_overrideTags.empty()) {
@@ -370,7 +389,7 @@ int main(int argc, char *argv[]) {
         }
 
         OFString header{"PatientID;StudyInstanceUID;SeriesDescription"};
-        auto iter = opt_overrideTags.begin();
+        auto     iter = opt_overrideTags.begin();
         while (iter != opt_overrideTags.end()) {
             if (iter != opt_overrideTags.end()) {
                 header += ";";
@@ -380,7 +399,7 @@ int main(int argc, char *argv[]) {
         }
 
         const std::string dumpFilePath = fmt::format("{}-{:%Y-%m-%d-%H-%M-%S}.csv", opt_dumpFilepath.c_str(), tm);
-        fmt::ostream fileStream = fmt::output_file(dumpFilePath,
+        fmt::ostream      fileStream   = fmt::output_file(dumpFilePath,
                                                    fmt::file::CREATE | fmt::file::WRONLY | fmt::file::APPEND);
         fileStream.print("{}\n", header.c_str());
         fileStream.close();
@@ -394,7 +413,7 @@ int main(int argc, char *argv[]) {
             }
 
             std::vector<TagValuePair> queryTags;
-            for (const auto &ov_tag : opt_overrideTags) {
+            for (const auto &ov_tag: opt_overrideTags) {
                 DcmTag tag = prepareQueryTag(app, ov_tag.c_str());
                 queryTags.emplace_back(tag, ""); // adds TagValuePar<tag, "">
             }
