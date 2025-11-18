@@ -1,0 +1,16 @@
+# IDE files
+.idea/
+.vscode/
+.cache/
+
+# build files/folders
+build/
+cmake-build-*/
+
+# project files
+CMakePresets.json
+
+# project input/output files/folder
+download/
+test.txt
+missing-studies-*
