@@ -170,12 +170,5 @@ std::string idToDcmFormat(std::string_view id) {
 	// remove possible alphabet characters
 	std::erase(mod_id, '/');
 	std::erase_if(mod_id, ::isalpha);
-
-	// IMPORTANT FOR PACS:
-	// ids must be 10-digit length, otherwise querying could fail
-	// pad 9-digit IDs with leading zero
-	if (mod_id.length() == 9) {
-		mod_id.insert(0, 1, '0');
-	}
 	return mod_id;
 }
