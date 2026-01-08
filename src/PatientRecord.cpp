@@ -5,13 +5,14 @@
 #include "PatientRecord.hpp"
 
 #include <algorithm>
-#include <fstream>
 #include <chrono>
+#include <fstream>
 
-#include "fmt/format.h"
 #include "fmt/color.h"
+#include "fmt/format.h"
 
-auto splitString = [](std::string_view line, const char delimiter = ';', const std::size_t parts = 3) {
+auto splitString = [](std::string_view line, const char delimiter = ';',
+                      const std::size_t parts = 3) {
 	std::vector<std::string> tokens(parts, "");
 
 	std::size_t start{0}, end;
@@ -29,28 +30,32 @@ auto checkRecord = [](const PatientRecord &record) {
 	bool checkFailed{false};
 	std::string msg;
 
-
 	// check all
 	// record.m_name.empty() ||
 	if (record.m_id.empty() || record.m_study_date.empty()) {
 		msg = fmt::format("PatientName, PatientID or StudyDate is empty");
-		fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
+    fmt::print("{} - {}\n", msg,
+               fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 		checkFailed = true;
 		msg.clear();
 	}
 
 	if (std::ranges::any_of(record.m_id, ::isalpha)) {
-		msg = fmt::format(R"(ID "{}" contains non-numeric characters)", record.m_id);
-		fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
+    msg =
+        fmt::format(R"(ID "{}" contains non-numeric characters)", record.m_id);
+    fmt::print("{} - {}\n", msg,
+               fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 		checkFailed = true;
 		msg.clear();
 	}
 
 	// check study date
 	if (std::ranges::any_of(record.m_study_date, ::isalpha)) {
-		msg = fmt::format(R"(ID "{}" with Study Date "{}" contains alphabet characters)",
+    msg = fmt::format(
+        R"(ID "{}" with Study Date "{}" contains alphabet characters)",
 		                  record.m_id, record.m_study_date);
-		fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
+    fmt::print("{} - {}\n", msg,
+               fmt::format(fg(fmt::color::yellow), "LINE SKIPPED"));
 		checkFailed = true;
 		msg.clear();
 	}
@@ -58,7 +63,8 @@ auto checkRecord = [](const PatientRecord &record) {
 	return checkFailed;
 };
 
-std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath,
+std::vector<PatientRecord>
+readPatientRecords(const std::string &textFilePath,
 	const studyDateRangeExtend &studyDateRange) {
 	std::ifstream fileObject{textFilePath, std::ios::in};
 
@@ -71,13 +77,15 @@ std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath,
 	if (fileObject.is_open()) {
 		std::string line;
 		while (std::getline(fileObject, line)) {
-			if (line.empty()) continue;
+      if (line.empty())
+        continue;
 
-			auto tokens = splitString(line, ';', 3); // tokens[name, id, study_date, modality]
+      auto tokens =
+          splitString(line, ';', 3); // tokens[name, id, study_date, modality]
 
 			PatientRecord record{};
 			// record.m_name       = nameToDcmFormat(tokens[0]);
-			record.m_id         = idToDcmFormat(tokens[0]);
+      record.m_id = idToDcmFormat(tokens[0]);
 			record.m_study_date = dateToDcmFormat(tokens[1], studyDateRange);
 
 			if (!tokens[2].empty()) {
@@ -88,15 +96,18 @@ std::vector<PatientRecord> readPatientRecords(const std::string &textFilePath,
 			if (checkRecord(record))
 				continue;
 
-			bool recordExists = std::ranges::any_of(recordList,
-			                                        [&](const PatientRecord &rec) {
-				                                        return rec.m_id == record.m_id && rec.m_study_date == record.
-						                                        m_study_date;
+      bool recordExists =
+          std::ranges::any_of(recordList, [&](const PatientRecord &rec) {
+            return rec.m_id == record.m_id &&
+                   rec.m_study_date == record.m_study_date;
 			                                        });
 
 			if (recordExists) {
-				const std::string msg = fmt::format("PatientID {}: StudyDate: {}", record.m_id, record.m_study_date);
-				fmt::print("{} - {}\n", msg, fmt::format(fg(fmt::color::yellow), "SKIPPING DUPLICATE IN TEXT FILE"));
+        const std::string msg = fmt::format("PatientID {}: StudyDate: {}",
+                                            record.m_id, record.m_study_date);
+        fmt::print("{} - {}\n", msg,
+                   fmt::format(fg(fmt::color::yellow),
+                               "SKIPPING DUPLICATE IN TEXT FILE"));
 				continue;
 			}
 
@@ -120,7 +131,8 @@ std::string nameToDcmFormat(std::string_view fullname) {
 	return fmt::format("{}^{}", tokens[1], tokens[0]);
 }
 
-std::string dateToDcmFormat(std::string_view date, const studyDateRangeExtend &study_date_range) {
+std::string dateToDcmFormat(std::string_view date,
+                            const studyDateRangeExtend &study_date_range) {
 	auto tokens = splitString(date, '.', 3); // tokens[day, month, year]
 
 	for (auto &token : tokens) {
@@ -128,23 +140,24 @@ std::string dateToDcmFormat(std::string_view date, const studyDateRangeExtend &s
 		std::erase_if(token, ::isalpha);
 	}
 
-	unsigned day   = std::stoi(tokens[0]);
+  unsigned day = std::stoi(tokens[0]);
 	unsigned month = std::stoi(tokens[1]);
-	int      year  = std::stoi(tokens[2]);
+  int year = std::stoi(tokens[2]);
 
 	if (study_date_range.rangeMatch) {
-		std::chrono::year_month year_month_low{std::chrono::year{year}, std::chrono::month{month}};
+    std::chrono::year_month year_month_low{std::chrono::year{year},
+                                           std::chrono::month{month}};
 		year_month_low -= std::chrono::months{study_date_range.byMonth};
 
-		std::chrono::year_month year_month_high{std::chrono::year{year}, std::chrono::month{month}};
+    std::chrono::year_month year_month_high{std::chrono::year{year},
+                                            std::chrono::month{month}};
 		year_month_high += std::chrono::months{study_date_range.byMonth};
 
 		return fmt::format("{}{:02}01-{}{:02}01",
 		                   static_cast<int>(year_month_low.year()),
 		                   static_cast<unsigned int>(year_month_low.month()),
 		                   static_cast<int>(year_month_high.year()),
-		                   static_cast<unsigned int>(year_month_high.month())
-		                  );
+                       static_cast<unsigned int>(year_month_high.month()));
 	}
 
 	return fmt::format("{}{:02}{:02}", year, month, day);
